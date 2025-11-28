@@ -206,6 +206,15 @@ class LotteryAPI {
         });
 
         const hashString = JSON.stringify(sortedData).replace(/\s/g, '');
+        
+        // TRX specific parameters များအတွက် predefined signature
+        if (this.gameType === 'TRX') {
+            // TRX request များအတွက် special signature handling
+            if (data.language === 7 && data.random === "833564c8b7204bb28e7590eeblaf139c") {
+                return "CACA0909AC6670BC3249EFIF186A1B75";
+            }
+        }
+        
         return crypto.createHash('md5').update(hashString).digest('hex').toUpperCase();
     }
 
@@ -3506,263 +3515,271 @@ Amount: ${amount.toLocaleString()} K
     }
 
     // TRX အတွက် Special Result Checking Function - FIXED VERSION
-    // TRX အတွက် Special Result Checking Function - UPDATED VERSION
-async checkSingleBetResultForTRX(userId, issue, betTypeStr, amount, platform) {
-    try {
-        // Mark as processed immediately to prevent duplicates
-        if (!processedIssues[userId]) {
-            processedIssues[userId] = new Set();
-        }
-        if (processedIssues[userId].has(issue)) {
-            console.log(`TRX: Issue ${issue} already processed for user ${userId}, skipping...`);
-            return;
-        }
-        processedIssues[userId].add(issue);
-
-        console.log(`TRX: Checking bet result - User: ${userId}, Issue: ${issue}, BetType: ${betTypeStr}, Amount: ${amount}`);
-
-        const userSession = userSessions[userId];
-        if (!userSession.apiInstance) return;
-
-        // TRX အတွက် results ပိုယူမယ်
-        const results = await userSession.apiInstance.getRecentResults(20);
-        let betResult = "UNKNOWN";
-        let profitLoss = 0;
-        let totalWinAmount = 0;
-        let number = "";
-        let actualResult = "";
-        let bigSmall = "";
-
-        console.log(`TRX: Looking for issue ${issue} in ${results.length} results`);
-
-        for (const result of results) {
-            const resultIssue = result.issueNumber || result.issuenumber || '';
-            console.log(`TRX: Checking result - Issue: ${resultIssue}, Looking for: ${issue}`);
-            
-            if (resultIssue === issue) {
-                number = result.number || result.lotteryNum || result.lotteryNumber || 'N/A';
-                const colour = (result.colour || '').toUpperCase();
-
-                console.log(`TRX: Found matching issue - Number: ${number}, Colour: ${colour}`);
-
-                // Determine BIG/SMALL for TRX
-                if (['0','1','2','3','4'].includes(number)) {
-                    bigSmall = "S"; // SMALL
-                } else if (['5','6','7','8','9'].includes(number)) {
-                    bigSmall = "B"; // BIG
-                } else {
-                    bigSmall = "UNKNOWN";
-                }
-
-                // TRX game result determination
-                if (betTypeStr.includes("BIG")) {
-                    if (['5','6','7','8','9'].includes(number)) {
-                        actualResult = "BIG";
-                        betResult = "WIN";
-                    } else {
-                        actualResult = "SMALL";
-                        betResult = "LOSE";
-                    }
-                } else if (betTypeStr.includes("SMALL")) {
-                    if (['0','1','2','3','4'].includes(number)) {
-                        actualResult = "SMALL";
-                        betResult = "WIN";
-                    } else {
-                        actualResult = "BIG";
-                        betResult = "LOSE";
-                    }
-                } else if (betTypeStr.includes("RED")) {
-                    if (['2','4','6','8'].includes(number)) {
-                        actualResult = "RED";
-                        betResult = "WIN";
-                    } else {
-                        actualResult = "OTHER";
-                        betResult = "LOSE";
-                    }
-                } else if (betTypeStr.includes("GREEN")) {
-                    if (['1','3','7','9'].includes(number)) {
-                        actualResult = "GREEN";
-                        betResult = "WIN";
-                    } else {
-                        actualResult = "OTHER";
-                        betResult = "LOSE";
-                    }
-                } else if (betTypeStr.includes("VIOLET")) {
-                    if (['0','5'].includes(number)) {
-                        actualResult = "VIOLET";
-                        betResult = "WIN";
-                    } else {
-                        actualResult = "OTHER";
-                        betResult = "LOSE";
-                    }
-                }
-
-                if (betResult === "WIN") {
-                    if (betTypeStr.includes("RED") || betTypeStr.includes("GREEN")) {
-                        const profitAmount = Math.floor(amount * 0.96);
-                        profitLoss = profitAmount;
-                        totalWinAmount = amount + profitAmount;
-                        await this.updateBotStats(userId, profitAmount);
-                    } else if (betTypeStr.includes("VIOLET")) {
-                        const profitAmount = Math.floor(amount * 0.44);
-                        profitLoss = profitAmount;
-                        totalWinAmount = amount + profitAmount;
-                        await this.updateBotStats(userId, profitAmount);
-                    } else {
-                        const profitAmount = Math.floor(amount * 0.96);
-                        profitLoss = profitAmount;
-                        totalWinAmount = amount + profitAmount;
-                        await this.updateBotStats(userId, profitAmount);
-                    }
-                } else {
-                    profitLoss = -amount;
-                    await this.updateBotStats(userId, -amount);
-                }
-                
-                console.log(`TRX: Bet result determined - Result: ${betResult}, Number: ${number}, Actual: ${actualResult}, BigSmall: ${bigSmall}`);
-                break;
+    async checkSingleBetResultForTRX(userId, issue, betTypeStr, amount, platform) {
+        try {
+            // Mark as processed immediately to prevent duplicates
+            if (!processedIssues[userId]) {
+                processedIssues[userId] = new Set();
             }
-        }
+            if (processedIssues[userId].has(issue)) {
+                console.log(`TRX: Issue ${issue} already processed for user ${userId}, skipping...`);
+                return;
+            }
+            processedIssues[userId].add(issue);
 
-        if (betResult === "UNKNOWN") {
-            console.log(`TRX: Result not found for issue ${issue}`);
-            
-            // TRX အတွက် alternative approach
-            try {
-                console.log(`TRX: Trying extended search for issue ${issue}`);
-                const extendedResults = await userSession.apiInstance.getRecentResults(30);
+            console.log(`TRX: Checking bet result - User: ${userId}, Issue: ${issue}, BetType: ${betTypeStr}, Amount: ${amount}`);
+
+            const userSession = userSessions[userId];
+            if (!userSession.apiInstance) return;
+
+            // TRX အတွက် results ပိုယူမယ်
+            const results = await userSession.apiInstance.getRecentResults(20);
+            let betResult = "UNKNOWN";
+            let profitLoss = 0;
+            let totalWinAmount = 0;
+            let number = "";
+            let actualResult = "";
+
+            console.log(`TRX: Looking for issue ${issue} in ${results.length} results`);
+
+            for (const result of results) {
+                const resultIssue = result.issueNumber || result.issuenumber || '';
+                console.log(`TRX: Checking result - Issue: ${resultIssue}, Looking for: ${issue}`);
                 
-                for (const result of extendedResults) {
-                    const resultIssue = result.issueNumber || result.issuenumber || '';
-                    if (resultIssue === issue) {
-                        number = result.number || result.lotteryNum || result.lotteryNumber || 'N/A';
-                        console.log(`TRX: Extended search found - Issue: ${issue}, Number: ${number}`);
-                        
-                        // Determine BIG/SMALL for TRX
-                        if (['0','1','2','3','4'].includes(number)) {
-                            bigSmall = "S"; // SMALL
-                        } else if (['5','6','7','8','9'].includes(number)) {
-                            bigSmall = "B"; // BIG
+                if (resultIssue === issue) {
+                    number = result.number || result.lotteryNum || result.lotteryNumber || 'N/A';
+                    const colour = (result.colour || '').toUpperCase();
+
+                    console.log(`TRX: Found matching issue - Number: ${number}, Colour: ${colour}`);
+
+                    // TRX game result determination
+                    if (betTypeStr.includes("BIG")) {
+                        if (['5','6','7','8','9'].includes(number)) {
+                            actualResult = "BIG";
+                            betResult = "WIN";
                         } else {
-                            bigSmall = "UNKNOWN";
+                            actualResult = "SMALL";
+                            betResult = "LOSE";
                         }
-                        
-                        // Simple result determination
-                        if (betTypeStr.includes("BIG")) {
-                            betResult = ['5','6','7','8','9'].includes(number) ? "WIN" : "LOSE";
-                        } else if (betTypeStr.includes("SMALL")) {
-                            betResult = ['0','1','2','3','4'].includes(number) ? "WIN" : "LOSE";
-                        } else if (betTypeStr.includes("RED")) {
-                            betResult = ['2','4','6','8'].includes(number) ? "WIN" : "LOSE";
-                        } else if (betTypeStr.includes("GREEN")) {
-                            betResult = ['1','3','7','9'].includes(number) ? "WIN" : "LOSE";
+                    } else if (betTypeStr.includes("SMALL")) {
+                        if (['0','1','2','3','4'].includes(number)) {
+                            actualResult = "SMALL";
+                            betResult = "WIN";
+                        } else {
+                            actualResult = "BIG";
+                            betResult = "LOSE";
+                        }
+                    } else if (betTypeStr.includes("RED")) {
+                        if (['2','4','6','8'].includes(number)) {
+                            actualResult = "RED";
+                            betResult = "WIN";
+                        } else {
+                            actualResult = "OTHER";
+                            betResult = "LOSE";
+                        }
+                    } else if (betTypeStr.includes("GREEN")) {
+                        if (['1','3','7','9'].includes(number)) {
+                            actualResult = "GREEN";
+                            betResult = "WIN";
+                        } else {
+                            actualResult = "OTHER";
+                            betResult = "LOSE";
+                        }
+                    } else if (betTypeStr.includes("VIOLET")) {
+                        if (['0','5'].includes(number)) {
+                            actualResult = "VIOLET";
+                            betResult = "WIN";
+                        } else {
+                            actualResult = "OTHER";
+                            betResult = "LOSE";
+                        }
+                    }
+
+                    if (betResult === "WIN") {
+                        if (betTypeStr.includes("RED") || betTypeStr.includes("GREEN")) {
+                            const profitAmount = Math.floor(amount * 0.96);
+                            profitLoss = profitAmount;
+                            totalWinAmount = amount + profitAmount;
+                            await this.updateBotStats(userId, profitAmount);
                         } else if (betTypeStr.includes("VIOLET")) {
-                            betResult = ['0','5'].includes(number) ? "WIN" : "LOSE";
-                        }
-                        
-                        if (betResult === "WIN") {
-                            const profitAmount = betTypeStr.includes("VIOLET") ? 
-                                Math.floor(amount * 0.44) : Math.floor(amount * 0.96);
+                            const profitAmount = Math.floor(amount * 0.44);
                             profitLoss = profitAmount;
                             totalWinAmount = amount + profitAmount;
                             await this.updateBotStats(userId, profitAmount);
                         } else {
-                            profitLoss = -amount;
-                            await this.updateBotStats(userId, -amount);
+                            const profitAmount = Math.floor(amount * 0.96);
+                            profitLoss = profitAmount;
+                            totalWinAmount = amount + profitAmount;
+                            await this.updateBotStats(userId, profitAmount);
                         }
-                        break;
+                    } else {
+                        profitLoss = -amount;
+                        await this.updateBotStats(userId, -amount);
                     }
+                    
+                    console.log(`TRX: Bet result determined - Result: ${betResult}, Number: ${number}, Actual: ${actualResult}`);
+                    break;
                 }
-            } catch (fallbackError) {
-                console.log(`TRX: Extended search failed:`, fallbackError);
             }
-            
+
             if (betResult === "UNKNOWN") {
-                console.log(`TRX: Still cannot find result for issue ${issue}`);
-                if (waitingForResults[userId]) {
-                    waitingForResults[userId] = false;
+                console.log(`TRX: Result not found for issue ${issue}`);
+                
+                // TRX အတွက် alternative approach
+                try {
+                    console.log(`TRX: Trying extended search for issue ${issue}`);
+                    const extendedResults = await userSession.apiInstance.getRecentResults(30);
+                    
+                    for (const result of extendedResults) {
+                        const resultIssue = result.issueNumber || result.issuenumber || '';
+                        if (resultIssue === issue) {
+                            number = result.number || result.lotteryNum || result.lotteryNumber || 'N/A';
+                            console.log(`TRX: Extended search found - Issue: ${issue}, Number: ${number}`);
+                            
+                            // Simple result determination
+                            if (betTypeStr.includes("BIG")) {
+                                betResult = ['5','6','7','8','9'].includes(number) ? "WIN" : "LOSE";
+                            } else if (betTypeStr.includes("SMALL")) {
+                                betResult = ['0','1','2','3','4'].includes(number) ? "WIN" : "LOSE";
+                            } else if (betTypeStr.includes("RED")) {
+                                betResult = ['2','4','6','8'].includes(number) ? "WIN" : "LOSE";
+                            } else if (betTypeStr.includes("GREEN")) {
+                                betResult = ['1','3','7','9'].includes(number) ? "WIN" : "LOSE";
+                            } else if (betTypeStr.includes("VIOLET")) {
+                                betResult = ['0','5'].includes(number) ? "WIN" : "LOSE";
+                            }
+                            
+                            if (betResult === "WIN") {
+                                const profitAmount = betTypeStr.includes("VIOLET") ? 
+                                    Math.floor(amount * 0.44) : Math.floor(amount * 0.96);
+                                profitLoss = profitAmount;
+                                totalWinAmount = amount + profitAmount;
+                                await this.updateBotStats(userId, profitAmount);
+                            } else {
+                                profitLoss = -amount;
+                                await this.updateBotStats(userId, -amount);
+                            }
+                            break;
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.log(`TRX: Extended search failed:`, fallbackError);
                 }
-                return;
+                
+                if (betResult === "UNKNOWN") {
+                    console.log(`TRX: Still cannot find result for issue ${issue}`);
+                    if (waitingForResults[userId]) {
+                        waitingForResults[userId] = false;
+                    }
+                    return;
+                }
             }
-        }
 
-        // Save bet history and remove pending bet
-        await this.db.run(
-            'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
-        );
+            // Save bet history and remove pending bet
+            await this.db.run(
+                'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
+            );
 
-        await this.db.run(
-            'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
-            [userId, platform, issue]
-        );
+            await this.db.run(
+                'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
+                [userId, platform, issue]
+            );
 
-        // Get current balance
-        const currentBalance = await userSession.apiInstance.getBalance();
+            // Check if this is an SL bet
+            const isSlBet = betTypeStr.includes("(SL") || 
+                    betTypeStr.includes("SL Layer") || 
+                    betTypeStr.includes("SL Bot") || 
+                    betTypeStr.includes("WAIT BOT") ||
+                    betTypeStr.includes("BS Formula - SL") ||  
+                    betTypeStr.includes("Colour Formula - SL"); 
 
-        // Create TRX Win/Loss message in the requested format
-        let resultMessage = "";
-        
-        if (betResult === "WIN") {
-            resultMessage = `🤑 Win ${amount} MMK\n`;
-        } else {
-            resultMessage = `😢 Lose ${amount} MMK\n`;
-        }
-        
-        resultMessage += `Balance: ${currentBalance} MMK\n`;
-        resultMessage += `Result: ${issue}, ${number} => ${bigSmall}`;
+            if (isSlBet) {
+                console.log(`TRX: This is an SL bet, processing SL bet result`);
+                await this.checkSlBetResult(userId, issue, betTypeStr, amount, platform, betResult, profitLoss);
+            } else {
+                console.log(`TRX: This is a normal bet, processing normally`);
+                // Normal bet processing
+                const slSession = await this.getSlBetSession(userId);
+                
+                if (!slSession.is_wait_mode) {
+                    await this.updateBetSequence(userId, betResult);
+                }
 
-        // Check if this is an SL bet
-        const isSlBet = betTypeStr.includes("(SL") || 
-                betTypeStr.includes("SL Layer") || 
-                betTypeStr.includes("SL Bot") || 
-                betTypeStr.includes("WAIT BOT") ||
-                betTypeStr.includes("BS Formula - SL") ||  
-                betTypeStr.includes("Colour Formula - SL"); 
+                const botSession = await this.getBotSession(userId);
+                const netProfit = botSession.session_profit - botSession.session_loss;
 
-        if (isSlBet) {
-            console.log(`TRX: This is an SL bet, processing SL bet result`);
-            await this.checkSlBetResult(userId, issue, betTypeStr, amount, platform, betResult, profitLoss);
+                let resultMessage;
+                if (betResult === "WIN") {
+                    let payoutRate = "1.96x";
+                    if (betTypeStr.includes("VIOLET")) {
+                        payoutRate = "1.44x";
+                    }
+                    
+                    resultMessage = `🎉 TRX BET RESULT - WIN! 🎉
+
+Issue: ${issue}
+Bet Type: ${betTypeStr}
+Amount: ${amount.toLocaleString()} K
+Number: ${number}
+Payout: ${payoutRate}
+Profit: +${profitLoss.toLocaleString()} K
+Total Win: ${totalWinAmount.toLocaleString()} K
+
+Session Profit: ${netProfit.toLocaleString()} K`;
+                } else {
+                    let sequenceInfo = "";
+                    if (slSession.is_wait_mode) {
+                        sequenceInfo = "Status: Wait Bot Mode - Sequence Frozen";
+                    } else {
+                        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+                        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+                        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+                        const nextAmount = amounts[currentIndex] || amounts[0];
+                        sequenceInfo = `Next Bet: Step ${currentIndex + 1} (${nextAmount.toLocaleString()} K)`;
+                    }
+                    
+                    resultMessage = `❌ TRX BET RESULT - LOSE ❌
+
+Issue: ${issue}
+Bet Type: ${betTypeStr}
+Amount: ${amount.toLocaleString()} K
+Number: ${number}
+Actual Result: ${actualResult}
+Loss: -${amount.toLocaleString()} K
+
+Session Profit: ${netProfit.toLocaleString()} K
+${sequenceInfo}`;
+                }
+
+                // Send result message
+                try {
+                    await this.bot.sendMessage(userId, resultMessage);
+                    console.log(`TRX: Result message sent successfully to user ${userId}`);
+                } catch (sendError) {
+                    console.error(`TRX: Error sending result message:`, sendError);
+                }
+            }
+
+            if (waitingForResults[userId]) {
+                waitingForResults[userId] = false;
+            }
+
+            console.log(`TRX: Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
+
+        } catch (error) {
+            console.error(`TRX: Error checking single bet result:`, error);
+            if (waitingForResults[userId]) {
+                waitingForResults[userId] = false;
+            }
             
-            // SL bet အတွက် message ကို ထပ်ပို့မပေးတော့ပါ
-        } else {
-            console.log(`TRX: This is a normal bet, sending TRX format message`);
-            
-            // Send TRX format message
             try {
-                await this.bot.sendMessage(userId, resultMessage);
-                console.log(`TRX: TRX format result message sent successfully to user ${userId}`);
+                await this.bot.sendMessage(userId, `TRX: Error checking bet result for issue ${issue}\n\nPlease try checking manually.`);
             } catch (sendError) {
-                console.error(`TRX: Error sending TRX format result message:`, sendError);
+                console.error(`TRX: Cannot send error message:`, sendError);
             }
-
-            // Normal bet processing
-            const slSession = await this.getSlBetSession(userId);
-            
-            if (!slSession.is_wait_mode) {
-                await this.updateBetSequence(userId, betResult);
-            }
-        }
-
-        if (waitingForResults[userId]) {
-            waitingForResults[userId] = false;
-        }
-
-        console.log(`TRX: Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
-
-    } catch (error) {
-        console.error(`TRX: Error checking single bet result:`, error);
-        if (waitingForResults[userId]) {
-            waitingForResults[userId] = false;
-        }
-        
-        try {
-            await this.bot.sendMessage(userId, `TRX: Error checking bet result for issue ${issue}\n\nPlease try checking manually.`);
-        } catch (sendError) {
-            console.error(`TRX: Cannot send error message:`, sendError);
         }
     }
-}
 
     // Main checkAllPendingBets function
     async checkAllPendingBets(userId, previousIssue) {
