@@ -415,23 +415,11 @@ class LotteryAPI {
                 "timestamp": Math.floor(Date.now() / 1000)
             };
         } 
-        // 777 platform အတွက် - WINGO 3 MIN အတွက် သီးသန့် handling
+        // 777 platform အတွက် - ALL games use baseAmount and betCount calculation
         else {
-            // WINGO 3 MIN အတွက် amount calculation ပြောင်းမယ်
-            let baseAmount, betCount;
-            
-            if (this.gameType === 'WINGO_3MIN') {
-                // WINGO 3 MIN အတွက် တိုက်ရိုက် amount သုံးမယ်
-                baseAmount = amount;
-                betCount = 1;
-                console.log(`🎯 WINGO 3 MIN - Using direct amount: ${amount}`);
-            } else {
-                // Normal WINGO/TRX အတွက် original calculation
-                baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
-                betCount = Math.floor(amount / baseAmount);
-                console.log(`💰 Normal Calculation - Amount: ${amount}, BaseAmount: ${baseAmount}, BetCount: ${betCount}`);
-            }
-            
+            // 777 platform calculation for ALL games (WINGO, TRX, WINGO_3MIN)
+            const baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
+            const betCount = Math.floor(amount / baseAmount);
             const isColourBet = [10, 11, 12].includes(betType);
             
             // Game type အလိုက် configuration
@@ -459,6 +447,8 @@ class LotteryAPI {
                 "random": this.randomKey(),
                 "timestamp": Math.floor(Date.now() / 1000)
             };
+
+            console.log(`💰 777 Platform Calculation - Amount: ${amount}, BaseAmount: ${baseAmount}, BetCount: ${betCount}, Total: ${baseAmount * betCount}`);
         }
 
         requestBody.signature = this.signMd5(requestBody);
@@ -507,6 +497,18 @@ class LotteryAPI {
                 const errorMsg = result.msg || result.message || result.error || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
                 
+                // "Betting amount error" အတွက် special handling - bet sequence ကို reset လုပ်မယ်
+                if (errorMsg.includes('Betting amount error') || errorMsg.includes('amount error')) {
+                    // Reset to first bet amount
+                    await this.saveUserSetting(userId, 'current_bet_index', 0);
+                    return { 
+                        success: false, 
+                        message: `Amount format error. Please try a different bet amount. Reset to first step.`, 
+                        issueId, 
+                        potentialProfit: 0 
+                    };
+                }
+                
                 // "The current period is settled" error အတွက် special handling
                 if (errorMsg.includes('settled') || errorMsg.includes('period') || errorMsg.includes('current')) {
                     return { 
@@ -517,8 +519,8 @@ class LotteryAPI {
                     };
                 }
                 
-                // Amount error ဖြစ်ရင် bet sequence ကို reset လုပ်မယ်
-                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient') || errorMsg.includes('Betting amount error')) {
+                // Other amount errors
+                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient')) {
                     return { 
                         success: false, 
                         message: `Amount error: ${errorMsg}. Please check your bet amount.`, 
