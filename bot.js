@@ -3754,7 +3754,159 @@ async saveColourPattern(userId, pattern) {
 
         await this.bot.sendMessage(chatId, "Active broadcast feature will be implemented soon.");
     }
-} // <-- ဒီနေရာမှာ AutoLotteryBot class ကို ပိတ်ပါ
+
+// Placeholder functions for other features - ဒီ function တွေကို class ထဲမှာပဲ ထားပါ
+    async setRandomBig(chatId, userId) {
+        try {
+            await this.saveUserSetting(userId, 'random_betting', 'big');
+            await this.clearFormulaPatterns(userId);
+            
+            await this.bot.sendMessage(chatId, "✅ *Random Mode Set*\n\n- 🎯 Random BIG - Always bet BIG\n\n🤖 Bot will now always bet BIG in auto mode.", {
+                parse_mode: 'Markdown'
+            });
+        } catch (error) {
+            console.error(`Error setting random big for user ${userId}:`, error);
+            await this.bot.sendMessage(chatId, "❌ Error setting random mode. Please try again.", {
+                parse_mode: 'Markdown'
+            });
+        }
+    }
+
+    async setRandomSmall(chatId, userId) {
+        try {
+            await this.saveUserSetting(userId, 'random_betting', 'small');
+            await this.clearFormulaPatterns(userId);
+            
+            await this.bot.sendMessage(chatId, "✅ *Random Mode Set*\n\n- 🎯 Random SMALL - Always bet SMALL\n\n🤖 Bot will now always bet SMALL in auto mode.", {
+                parse_mode: 'Markdown'
+            });
+        } catch (error) {
+            console.error(`Error setting random small for user ${userId}:`, error);
+            await this.bot.sendMessage(chatId, "❌ Error setting random mode. Please try again.", {
+                parse_mode: 'Markdown'
+            });
+        }
+    }
+
+    async setRandomBot(chatId, userId) {
+        try {
+            await this.saveUserSetting(userId, 'random_betting', 'bot');
+            await this.clearFormulaPatterns(userId);
+            
+            await this.bot.sendMessage(chatId, "✅ *Random Mode Set*\n\n- 🎯 Random Bot - Random BIG/SMALL\n\n🤖 Bot will now randomly choose between BIG and SMALL in auto mode.", {
+                parse_mode: 'Markdown'
+            });
+        } catch (error) {
+            console.error(`Error setting random bot for user ${userId}:`, error);
+            await this.bot.sendMessage(chatId, "❌ Error setting random mode. Please try again.", {
+                parse_mode: 'Markdown'
+            });
+        }
+    }
+
+    async setFollowBot(chatId, userId) {
+        try {
+            await this.saveUserSetting(userId, 'random_betting', 'follow');
+            await this.clearFormulaPatterns(userId);
+            
+            await this.bot.sendMessage(chatId, "✅ *Random Mode Set*\n\n- 🎯 Follow Bot - Follow Last Result\n\n🤖 Bot will now follow the last game result in auto mode.", {
+                parse_mode: 'Markdown'
+            });
+        } catch (error) {
+            console.error(`Error setting follow bot for user ${userId}:`, error);
+            await this.bot.sendMessage(chatId, "❌ Error setting random mode. Please try again.", {
+                parse_mode: 'Markdown'
+            });
+        }
+    }
+
+    async getFormulaPatterns(userId) {
+        try {
+            const result = await this.db.get(
+                'SELECT bs_pattern, colour_pattern, bs_current_index, colour_current_index FROM formula_patterns WHERE user_id = ?',
+                [userId]
+            );
+            
+            if (result) {
+                return {
+                    bs_pattern: result.bs_pattern || "",
+                    colour_pattern: result.colour_pattern || "",
+                    bs_current_index: result.bs_current_index || 0,
+                    colour_current_index: result.colour_current_index || 0
+                };
+            }
+            
+            return { bs_pattern: "", colour_pattern: "", bs_current_index: 0, colour_current_index: 0 };
+        } catch (error) {
+            console.error(`Error getting formula patterns for user ${userId}:`, error);
+            return { bs_pattern: "", colour_pattern: "", bs_current_index: 0, colour_current_index: 0 };
+        }
+    }
+
+    async clearFormulaPatterns(userId, patternType = null) {
+        try {
+            if (patternType === 'bs') {
+                await this.db.run('UPDATE formula_patterns SET bs_pattern = "", bs_current_index = 0 WHERE user_id = ?', [userId]);
+            } else if (patternType === 'colour') {
+                await this.db.run('UPDATE formula_patterns SET colour_pattern = "", colour_current_index = 0 WHERE user_id = ?', [userId]);
+            } else {
+                await this.db.run('UPDATE formula_patterns SET bs_pattern = "", colour_pattern = "", bs_current_index = 0, colour_current_index = 0 WHERE user_id = ?', [userId]);
+            }
+            return true;
+        } catch (error) {
+            console.error(`Error clearing formula patterns for user ${userId}:`, error);
+            return false;
+        }
+    }
+
+    async getSlPattern(userId) {
+        try {
+            const result = await this.db.get(
+                'SELECT pattern, current_sl, current_index, wait_loss_count, bet_count FROM sl_patterns WHERE user_id = ?',
+                [userId]
+            );
+            
+            if (result) {
+                let pattern = result.pattern || '';
+                if (pattern === '1,2,3,4,5') {
+                    pattern = '';
+                }
+                
+                return {
+                    pattern: pattern,
+                    current_sl: result.current_sl || 1,
+                    current_index: result.current_index || 0,
+                    wait_loss_count: result.wait_loss_count || 0,
+                    bet_count: result.bet_count || 0
+                };
+            }
+            
+            return { pattern: '', current_sl: 1, current_index: 0, wait_loss_count: 0, bet_count: 0 };
+        } catch (error) {
+            console.error(`Error getting SL pattern for user ${userId}:`, error);
+            return { pattern: '', current_sl: 1, current_index: 0, wait_loss_count: 0, bet_count: 0 };
+        }
+    }
+
+    async getBetHistory(userId, platform = null, limit = 10) {
+        try {
+            if (platform) {
+                return await this.db.all(
+                    'SELECT platform, issue, bet_type, amount, result, profit_loss, created_at FROM bet_history WHERE user_id = ? AND platform = ? ORDER BY created_at DESC LIMIT ?',
+                    [userId, platform, limit]
+                );
+            } else {
+                return await this.db.all(
+                    'SELECT platform, issue, bet_type, amount, result, profit_loss, created_at FROM bet_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+                    [userId, limit]
+                );
+            }
+        } catch (error) {
+            console.error(`Error getting bet history for user ${userId}:`, error);
+            return [];
+        }
+    }
+} // <-- AutoLotteryBot class ကို ဒီနေရာမှာ ပိတ်ပါ
 
 // Start the bot
 console.log("Auto Lottery Bot starting...");
@@ -3783,4 +3935,3 @@ const bot = new AutoLotteryBot();
 process.on('SIGINT', () => {
     console.log('Shutting down bot...');
     process.exit();
-});
