@@ -375,124 +375,59 @@ class LotteryAPI {
             return { success: false, message: "Failed to get current issue", issueId: "", potentialProfit: 0 };
         }
 
-        console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}`);
+        console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}, Platform: ${this.platform}`);
 
-        // Amount validation - API က လက်ခံတဲ့ amount format ဖြစ်အောင်
-        let validAmount = amount;
-        
-        // Amount ကို integer အဖြစ် သေချာစေခြင်း
-        if (typeof validAmount !== 'number') {
-            validAmount = parseInt(validAmount);
-        }
-        
-        // Minimum bet amount check (အကယ်၍ ရှိရင်)
-        if (validAmount < 100) {
-            validAmount = 100;
-        }
-        
-        // Maximum bet amount check (အကယ်၍ ရှိရင်)
-        if (validAmount > 50000) {
-            validAmount = 50000;
-        }
-
-        const currentTime = Math.floor(Date.now() / 1000);
         let requestBody;
-
-        // For TRX game - TRX မှာ Colour bet မရှိပါ
-        if (this.gameType === 'TRX') {
-            // TRX မှာ Colour bet မရှိဘူး၊ BIG/SMALL ပဲရှိတယ်
-            if (betType === 10 || betType === 11 || betType === 12) {
-                return { 
-                    success: false, 
-                    message: "TRX game does not support colour betting. Please use BIG or SMALL only.", 
-                    issueId: "", 
-                    potentialProfit: 0 
-                };
-            }
-            
+        
+        // 6lottery platform အတွက်
+        if (this.platform === '6lottery') {
             requestBody = {
-                "typeId": 13,
+                "typeId": 1,
                 "issuenumber": issueId,
                 "language": 0,
-                "gameType": 2,  // TRX uses gameType 2
-                "amount": validAmount,  // validated amount
+                "gameType": 0,
+                "amount": amount,
                 "betCount": 1,
                 "selectType": betType,
                 "random": this.randomKey(),
-                "timestamp": currentTime
+                "timestamp": Math.floor(Date.now() / 1000)
             };
         } 
-        // For WINGO 3 MIN
-        else if (this.gameType === 'WINGO_3MIN') {
-            const isColourBet = [10, 11, 12].includes(betType);
-            
-            if (isColourBet) {
-                // Colour betting for WINGO 3 MIN
-                requestBody = {
-                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
-                    "issuenumber": issueId,
-                    "language": 0,
-                    "gameType": 0,  // 0 for colour betting
-                    "amount": validAmount,  // validated amount
-                    "betCount": 1,
-                    "selectType": betType,
-                    "random": this.randomKey(),
-                    "timestamp": currentTime
-                };
-            } else {
-                // BIG/SMALL betting for WINGO 3 MIN
-                requestBody = {
-                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
-                    "issuenumber": issueId,
-                    "language": 0,
-                    "gameType": 2,  // 2 for BIG/SMALL betting
-                    "amount": validAmount,  // validated amount
-                    "betCount": 1,
-                    "selectType": betType,
-                    "random": this.randomKey(),
-                    "timestamp": currentTime
-                };
-            }
-        }
-        // For normal WINGO
+        // 777 platform အတွက် - amount ကို တိုက်ရိုက်အသုံးပြုမယ်
         else {
+            // TRX game အတွက် typeId သတ်မှတ်ခြင်း
+            const typeId = this.gameType === 'TRX' ? 13 : 1;
+            
+            // Colour bet ဟုတ်မဟုတ် စစ်ဆေးခြင်း
             const isColourBet = [10, 11, 12].includes(betType);
             
-            if (isColourBet) {
-                // Colour betting for normal WINGO
-                requestBody = {
-                    "typeId": 1,  // WINGO uses typeId 1
-                    "issuenumber": issueId,
-                    "language": 0,
-                    "gameType": 0,  // 0 for colour betting
-                    "amount": validAmount,  // validated amount
-                    "betCount": 1,
-                    "selectType": betType,
-                    "random": this.randomKey(),
-                    "timestamp": currentTime
-                };
+            // Game type သတ်မှတ်ခြင်း
+            let gameType;
+            if (this.gameType === 'TRX') {
+                gameType = 2; // TRX အတွက် gameType 2
             } else {
-                // BIG/SMALL betting for normal WINGO
-                requestBody = {
-                    "typeId": 1,  // WINGO uses typeId 1
-                    "issuenumber": issueId,
-                    "language": 0,
-                    "gameType": 2,  // 2 for BIG/SMALL betting
-                    "amount": validAmount,  // validated amount
-                    "betCount": 1,
-                    "selectType": betType,
-                    "random": this.randomKey(),
-                    "timestamp": currentTime
-                };
+                gameType = isColourBet ? 0 : 2; // Colour bet: 0, BIG/SMALL: 2
             }
+
+            // 777 platform အတွက် amount ကို တိုက်ရိုက်အသုံးပြုမယ်
+            requestBody = {
+                "typeId": typeId,
+                "issuenumber": issueId,
+                "language": 0,
+                "gameType": gameType,
+                "amount": amount, // amount ကို တိုက်ရိုက်ထည့်မယ်
+                "betCount": 1,   // betCount ကို 1 အဖြစ်သတ်မှတ်မယ်
+                "selectType": betType,
+                "random": this.randomKey(),
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
         }
 
-        // Generate signature
         requestBody.signature = this.signMd5(requestBody);
 
         console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
 
-        // Determine endpoint
+        // Endpoint သတ်မှတ်ခြင်း
         let endpoint;
         if (this.gameType === 'TRX') {
             endpoint = 'GameTrxBetting';
@@ -509,14 +444,18 @@ class LotteryAPI {
 
         if (response.status === 200) {
             const result = response.data;
-            if (result.code === 0 || result.msgCode === 0) {
+            
+            // Multiple success response formats စစ်ဆေးခြင်း
+            if (result.code === 0 || result.msgCode === 0 || result.success === true) {
                 let potentialProfit;
+                
+                // Profit calculation
                 if (betType === 10 || betType === 11) { // RED or GREEN
-                    potentialProfit = Math.floor(validAmount * 0.96);
+                    potentialProfit = Math.floor(amount * 0.96);
                 } else if (betType === 12) { // VIOLET
-                    potentialProfit = Math.floor(validAmount * 0.44);
+                    potentialProfit = Math.floor(amount * 0.44);
                 } else { // BIG or SMALL
-                    potentialProfit = Math.floor(validAmount * 0.96);
+                    potentialProfit = Math.floor(amount * 0.96);
                 }
                 
                 return { 
@@ -524,17 +463,26 @@ class LotteryAPI {
                     message: "Bet placed successfully", 
                     issueId, 
                     potentialProfit, 
-                    actualAmount: validAmount 
+                    actualAmount: amount 
                 };
             } else {
-                const errorMsg = result.msg || result.message || 'Bet failed';
+                const errorMsg = result.msg || result.message || result.error || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
                 
-                // Specific error handling for amount errors
-                if (errorMsg.includes('amount') || errorMsg.includes('betting') || errorMsg.includes('error')) {
+                // Specific error handling
+                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient')) {
                     return { 
                         success: false, 
-                        message: `Bet amount error: ${validAmount}K may be invalid. Please try a different amount.`, 
+                        message: `Amount error: ${errorMsg}`, 
+                        issueId, 
+                        potentialProfit: 0 
+                    };
+                }
+                
+                if (errorMsg.includes('time') || errorMsg.includes('issue')) {
+                    return { 
+                        success: false, 
+                        message: `Timing error: ${errorMsg}`, 
                         issueId, 
                         potentialProfit: 0 
                     };
@@ -560,7 +508,33 @@ class LotteryAPI {
         console.log('💥 Betting Error:', error.message);
         if (error.response) {
             console.log('❌ Error Response Data:', error.response.data);
+            console.log('❌ Error Response Status:', error.response.status);
+            
+            // HTTP error handling
+            if (error.response.status === 400) {
+                return { 
+                    success: false, 
+                    message: "Bad request - Invalid bet parameters", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            } else if (error.response.status === 401) {
+                return { 
+                    success: false, 
+                    message: "Authentication failed - Please login again", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            } else if (error.response.status === 500) {
+                return { 
+                    success: false, 
+                    message: "Server error - Please try again later", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            }
         }
+        
         return { 
             success: false, 
             message: `Bet error: ${error.message}`, 
@@ -570,6 +544,99 @@ class LotteryAPI {
     }
 }
 
+async getRecentResults(count = 10) {
+    try {
+        if (this.gameType === 'TRX') {
+            const body = {
+                "typeId": 13,
+                "language": 0,
+                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
+
+            const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const settled = result.data?.settled;
+                    if (settled) {
+                        const number = String(settled.number || '');
+                        let colour = 'UNKNOWN';
+                        if (['0', '5'].includes(number)) {
+                            colour = 'VIOLET';
+                        } else if (['1', '3', '7', '9'].includes(number)) {
+                            colour = 'GREEN';
+                        } else if (['2', '4', '6', '8'].includes(number)) {
+                            colour = 'RED';
+                        }
+                        
+                        return [{
+                            issueNumber: settled.issueNumber,
+                            number: number,
+                            colour: colour
+                        }];
+                    }
+                }
+            }
+        } else {
+            // WINGO_3MIN အတွက် typeId သတ်မှတ်ခြင်း
+            const typeId = this.gameType === 'WINGO_3MIN' ? 2 : 1;
+            
+            const body = {
+                "pageNo": 1,
+                "pageSize": count,
+                "language": 0,
+                "typeId": typeId,
+                "random": "6DEB0766860C42151A193692ED16D65A",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
+
+            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const dataStr = JSON.stringify(response.data);
+                    const startIdx = dataStr.indexOf('[');
+                    const endIdx = dataStr.indexOf(']') + 1;
+                    
+                    if (startIdx !== -1 && endIdx !== -1) {
+                        const resultsJson = dataStr.substring(startIdx, endIdx);
+                        const results = JSON.parse(resultsJson);
+                        
+                        results.forEach(resultItem => {
+                            const number = String(resultItem.number || '');
+                            if (['0', '5'].includes(number)) {
+                                resultItem.colour = 'VIOLET';
+                            } else if (['1', '3', '7', '9'].includes(number)) {
+                                resultItem.colour = 'GREEN';
+                            } else if (['2', '4', '6', '8'].includes(number)) {
+                                resultItem.colour = 'RED';
+                            } else {
+                                resultItem.colour = 'UNKNOWN';
+                            }
+                        });
+                        
+                        return results;
+                    }
+                }
+            }
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting recent results:', error.message);
+        return [];
+    }
+}
     async getRecentResults(count = 10) {
         try {
             if (this.gameType === 'TRX') {
