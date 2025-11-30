@@ -380,12 +380,63 @@ async placeBet(amount, betType) {
 
         console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}`);
 
+        // Amount validation - API က လက်ခံတဲ့ amount format ဖြစ်အောင်
+        let validAmount = amount;
+        
+        // Amount ကို integer အဖြစ် သေချာစေခြင်း
+        if (typeof validAmount !== 'number') {
+            validAmount = parseInt(validAmount);
+        }
+        
+        // Game type အလိုက် amount validation
+        if (this.gameType === 'WINGO_3MIN') {
+            // WINGO 3MIN အတွက် အတည်ပြုထားသော amounts - 100,500,1000,5000
+            const allowedAmounts = [100, 500, 1000, 5000];
+            if (!allowedAmounts.includes(validAmount)) {
+                // အနီးဆုံး allowed amount ကို ရွေးချယ်ခြင်း
+                const closestAmount = allowedAmounts.reduce((prev, curr) => {
+                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
+                });
+                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO_3MIN`);
+                validAmount = closestAmount;
+            }
+        } else if (this.gameType === 'TRX') {
+            // TRX အတွက် အတည်ပြုထားသော amounts
+            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+            if (!allowedAmounts.includes(validAmount)) {
+                const closestAmount = allowedAmounts.reduce((prev, curr) => {
+                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
+                });
+                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for TRX`);
+                validAmount = closestAmount;
+            }
+        } else {
+            // Normal WINGO အတွက် အတည်ပြုထားသော amounts
+            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+            if (!allowedAmounts.includes(validAmount)) {
+                const closestAmount = allowedAmounts.reduce((prev, curr) => {
+                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
+                });
+                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO`);
+                validAmount = closestAmount;
+            }
+        }
+        
+        // Minimum bet amount check
+        if (validAmount < 100) {
+            validAmount = 100;
+        }
+        
+        // Maximum bet amount check (safety limit)
+        if (validAmount > 50000) {
+            validAmount = 50000;
+        }
+
         const currentTime = Math.floor(Date.now() / 1000);
         let requestBody;
 
-        // For TRX game - TRX မှာ Colour bet မရှိပါ
+        // For TRX game
         if (this.gameType === 'TRX') {
-            // TRX မှာ Colour bet မရှိဘူး၊ BIG/SMALL ပဲရှိတယ်
             if (betType === 10 || betType === 11 || betType === 12) {
                 return { 
                     success: false, 
@@ -399,8 +450,8 @@ async placeBet(amount, betType) {
                 "typeId": 13,
                 "issuenumber": issueId,
                 "language": 0,
-                "gameType": 2,  // TRX uses gameType 2
-                "amount": amount,
+                "gameType": 2,
+                "amount": validAmount,
                 "betCount": 1,
                 "selectType": betType,
                 "random": this.randomKey(),
@@ -412,26 +463,24 @@ async placeBet(amount, betType) {
             const isColourBet = [10, 11, 12].includes(betType);
             
             if (isColourBet) {
-                // Colour betting for WINGO 3 MIN
                 requestBody = {
-                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
+                    "typeId": 2,
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 0,  // 0 for colour betting
-                    "amount": amount,
+                    "gameType": 0,
+                    "amount": validAmount,
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
                     "timestamp": currentTime
                 };
             } else {
-                // BIG/SMALL betting for WINGO 3 MIN
                 requestBody = {
-                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
+                    "typeId": 2,
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 2,  // 2 for BIG/SMALL betting
-                    "amount": amount,
+                    "gameType": 2,
+                    "amount": validAmount,
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
@@ -444,26 +493,24 @@ async placeBet(amount, betType) {
             const isColourBet = [10, 11, 12].includes(betType);
             
             if (isColourBet) {
-                // Colour betting for normal WINGO
                 requestBody = {
-                    "typeId": 1,  // WINGO uses typeId 1
+                    "typeId": 1,
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 0,  // 0 for colour betting
-                    "amount": amount,
+                    "gameType": 0,
+                    "amount": validAmount,
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
                     "timestamp": currentTime
                 };
             } else {
-                // BIG/SMALL betting for normal WINGO
                 requestBody = {
-                    "typeId": 1,  // WINGO uses typeId 1
+                    "typeId": 1,
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 2,  // 2 for BIG/SMALL betting
-                    "amount": amount,
+                    "gameType": 2,
+                    "amount": validAmount,
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
@@ -497,11 +544,11 @@ async placeBet(amount, betType) {
             if (result.code === 0 || result.msgCode === 0) {
                 let potentialProfit;
                 if (betType === 10 || betType === 11) { // RED or GREEN
-                    potentialProfit = Math.floor(amount * 0.96);
+                    potentialProfit = Math.floor(validAmount * 0.96);
                 } else if (betType === 12) { // VIOLET
-                    potentialProfit = Math.floor(amount * 0.44);
+                    potentialProfit = Math.floor(validAmount * 0.44);
                 } else { // BIG or SMALL
-                    potentialProfit = Math.floor(amount * 0.96);
+                    potentialProfit = Math.floor(validAmount * 0.96);
                 }
                 
                 return { 
@@ -509,11 +556,22 @@ async placeBet(amount, betType) {
                     message: "Bet placed successfully", 
                     issueId, 
                     potentialProfit, 
-                    actualAmount: amount 
+                    actualAmount: validAmount 
                 };
             } else {
                 const errorMsg = result.msg || result.message || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
+                
+                // Specific error handling for amount errors
+                if (errorMsg.includes('amount') || errorMsg.includes('betting') || errorMsg.includes('error')) {
+                    return { 
+                        success: false, 
+                        message: `Bet amount error: ${validAmount}K is not allowed. Trying different amount...`, 
+                        issueId, 
+                        potentialProfit: 0 
+                    };
+                }
+                
                 return { 
                     success: false, 
                     message: errorMsg, 
@@ -691,12 +749,10 @@ class AutoLotteryBot {
     }
 
     getMainKeyboard(userId = null) {
-    // currentUserId ကို parameter အဖြစ်လက်ခံပြီး userSession ရယူမယ်
     let userSession;
     if (userId) {
         userSession = this.ensureUserSession(userId);
     } else {
-        // Fallback for backward compatibility
         userSession = { gameType: 'WINGO' };
     }
     
@@ -1925,6 +1981,10 @@ async checkSingleBetResult(userId, issue) {
         await this.updateBotStats(userId, profitLoss);
         console.log(`📈 Bot stats updated for user ${userId}`);
 
+        // ✅ အရေးကြီးပြင်ဆင်ချက်: Bet sequence ကို update လုပ်မယ်
+        console.log(`🔄 Calling updateBetSequence for user ${userId} with result: ${betResult}`);
+        await this.updateBetSequence(userId, betResult);
+
         // Reset waiting state to allow next bet
         waitingForResults[userId] = false;
         console.log(`🔄 Reset waitingForResults for user ${userId}`);
@@ -2040,14 +2100,14 @@ async sendSequenceInfo(userId, chatId, betResult) {
 
             let sequenceMessage = "";
             if (betResult === "WIN") {
-                sequenceMessage = `🔄 *Sequence Reset to Step 1*\n`;
+                sequenceMessage = `🔄 Sequence Reset to Step 1\n`;
             } else {
-                sequenceMessage = `📈 *Next Bet: Step ${newIndex + 1}* (${nextAmount.toLocaleString()} K)\n`;
+                sequenceMessage = `📈 Next Bet: Step ${newIndex + 1} (${nextAmount.toLocaleString()} K)\n`;
             }
 
-            sequenceMessage += `🎯 *Bet Sequence:* ${betSequence}`;
+            sequenceMessage += `🎯 Bet Sequence: ${betSequence}`;
 
-            await this.bot.sendMessage(chatId, sequenceMessage, { parse_mode: 'Markdown' });
+            await this.bot.sendMessage(chatId, sequenceMessage);
         }
 
     } catch (error) {
@@ -2057,33 +2117,33 @@ async sendSequenceInfo(userId, chatId, betResult) {
 
     async updateBetSequence(userId, result) {
     try {
-        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
-        
-        // BS Formula mode မှာ pattern index ကို win/lose မှာမပြင်ပါ
-        if (randomMode === 'bs_formula') {
-            return await this.getCurrentBetSequenceIndex(userId);
-        }
-        
-        // Original logic for other modes
         const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
         const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
         const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
 
+        console.log(`🔄 Updating bet sequence for user ${userId}: currentIndex=${currentIndex}, result=${result}`);
+
         let newIndex;
         if (result === "WIN") {
             newIndex = 0; // Reset to first step on win
+            console.log(`✅ Win - Reset sequence to step 1`);
         } else {
             newIndex = currentIndex + 1; // Move to next step on loss
             if (newIndex >= amounts.length) {
                 newIndex = 0; // Reset if at the end
+                console.log(`🔄 Loss - Reached end of sequence, reset to step 1`);
+            } else {
+                console.log(`📈 Loss - Move to next step: ${currentIndex} -> ${newIndex}`);
             }
         }
 
         await this.saveUserSetting(userId, 'current_bet_index', newIndex);
+        console.log(`💾 Saved new bet index: ${newIndex} for user ${userId}`);
+        
         return newIndex;
 
     } catch (error) {
-        console.error(`Error updating bet sequence for user ${userId}:`, error);
+        console.error(`❌ Error updating bet sequence for user ${userId}:`, error);
         return 0;
     }
 }
@@ -2159,15 +2219,16 @@ async sendSequenceInfo(userId, chatId, betResult) {
                 modeText = "Random Bot";
         }
 
-        const startMessage = `🚀 *Auto Bot Started!*\n\n• Game Type: ${userSession.gameType || 'WINGO'}\n• Mode: ${modeText}`;
-        await this.bot.sendMessage(chatId, startMessage, { parse_mode: 'Markdown' });
+        // Markdown မသုံးတော့ဘဲ plain text သုံးမယ်
+        const startMessage = `🚀 Auto Bot Started!\n\n• Game Type: ${userSession.gameType || 'WINGO'}\n• Mode: ${modeText}`;
+        await this.bot.sendMessage(chatId, startMessage); // Remove parse_mode: 'Markdown'
 
         // Start normal betting
         this.startAutoBetting(userId);
         
     } catch (error) {
         console.error(`Error running bot for user ${userId}:`, error);
-        await this.bot.sendMessage(chatId, "❌ *Error starting bot.*\n\nPlease try again.", { parse_mode: 'Markdown' });
+        await this.bot.sendMessage(chatId, "❌ Error starting bot.\n\nPlease try again.");
     }
 }
 
@@ -2302,14 +2363,15 @@ async sendSequenceInfo(userId, chatId, betResult) {
             betTypeStr = `${betType === 13 ? 'BIG' : 'SMALL'} (Colour Formula Converted)`;
         }
 
+        // Bet amount ကို current bet sequence index နဲ့ ရယူမယ်
         const amount = await this.getCurrentBetAmount(userId);
-        console.log(`💰 Bet amount for user ${userId}: ${amount}`);
+        console.log(`💰 Bet amount for user ${userId}: ${amount} (from sequence)`);
 
         const balance = await userSession.apiInstance.getBalance();
 
         if (amount > 0 && balance < amount) {
             console.log(`💸 Insufficient balance for user ${userId}: ${balance} < ${amount}`);
-            this.bot.sendMessage(userId, `💸 *Insufficient Balance!*\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`, { parse_mode: 'Markdown' }).catch(console.error);
+            this.bot.sendMessage(userId, `💸 Insufficient Balance!\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`).catch(console.error);
             delete autoBettingTasks[userId];
             waitingForResults[userId] = false;
             return;
@@ -2324,7 +2386,7 @@ async sendSequenceInfo(userId, chatId, betResult) {
         
         if (profitTarget > 0 && netProfit >= profitTarget) {
             console.log(`🎯 Profit target reached for user ${userId}: ${netProfit} >= ${profitTarget}`);
-            this.bot.sendMessage(userId, `🎯 *Profit Target Reached!*\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
+            this.bot.sendMessage(userId, `🎯 Profit Target Reached!\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`).catch(console.error);
             delete autoBettingTasks[userId];
             waitingForResults[userId] = false;
             await this.saveBotSession(userId, false);
@@ -2333,18 +2395,23 @@ async sendSequenceInfo(userId, chatId, betResult) {
         
         if (lossTarget > 0 && botSession.session_loss >= lossTarget) {
             console.log(`🛑 Loss target reached for user ${userId}: ${botSession.session_loss} >= ${lossTarget}`);
-            this.bot.sendMessage(userId, `🛑 *Loss Target Reached!*\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
+            this.bot.sendMessage(userId, `🛑 Loss Target Reached!\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`).catch(console.error);
             delete autoBettingTasks[userId];
             waitingForResults[userId] = false;
             await this.saveBotSession(userId, false);
             return;
         }
 
-        // Send betting message
-        const betMessage = `🎰 *Placing Auto Bet*\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Issue: ${issue}`;
-        await this.bot.sendMessage(userId, betMessage, { parse_mode: 'Markdown' });
+        // Send betting message with sequence info
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+        const totalSteps = amounts.length;
+        
+        const betMessage = `🎰 Placing Auto Bet\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Step: ${currentIndex + 1}/${totalSteps}\n• Issue: ${issue}`;
+        await this.bot.sendMessage(userId, betMessage);
 
-        console.log(`📤 Placing bet for user ${userId}: ${betTypeStr} ${amount}K on ${issue}`);
+        console.log(`📤 Placing bet for user ${userId}: ${betTypeStr} ${amount}K on ${issue} (Step ${currentIndex + 1}/${totalSteps})`);
         const result = await userSession.apiInstance.placeBet(amount, betType);
         
         if (result.success) {
@@ -2356,13 +2423,23 @@ async sendSequenceInfo(userId, chatId, betResult) {
                 this.startIssueChecker(userId);
             }
 
-            const successMessage = `✅ *Bet Placed Successfully!*\n\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K`;
-            await this.bot.sendMessage(userId, successMessage, { parse_mode: 'Markdown' });
+            const successMessage = `✅ Bet Placed Successfully!\n\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Step: ${currentIndex + 1}/${totalSteps}`;
+            await this.bot.sendMessage(userId, successMessage);
             
         } else {
             console.log(`❌ Bet failed for user ${userId}: ${result.message}`);
-            const errorMessage = `❌ *Bet Failed*\n\nError: ${result.message}`;
-            await this.bot.sendMessage(userId, errorMessage, { parse_mode: 'Markdown' });
+            
+            // Amount error ဖြစ်ရင် sequence ကို reset လုပ်မယ်
+            if (result.message.includes('amount') || result.message.includes('betting')) {
+                console.log(`🔄 Amount error detected, resetting bet sequence for user ${userId}`);
+                await this.saveUserSetting(userId, 'current_bet_index', 0);
+                
+                const errorMessage = `❌ Bet Failed - Amount Error\n\nError: ${result.message}\n\n🔄 Bet sequence has been reset to step 1.`;
+                await this.bot.sendMessage(userId, errorMessage);
+            } else {
+                const errorMessage = `❌ Bet Failed\n\nError: ${result.message}`;
+                await this.bot.sendMessage(userId, errorMessage);
+            }
             
             // Reset waiting state on failure
             waitingForResults[userId] = false;
@@ -2543,23 +2620,43 @@ async updateBsPatternIndex(userId, newIndex) {
 }
 
     async getCurrentBetAmount(userId) {
-        try {
-            const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
-            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
-            
-            const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
-            
-            if (currentIndex < amounts.length) {
-                return amounts[currentIndex];
-            } else {
-                const amount = amounts[0] || 100;
-                await this.saveUserSetting(userId, 'current_bet_index', 0);
-                return amount;
-            }
-        } catch (error) {
-            console.error(`Error getting current bet amount for ${userId}:`, error);
-            return 100;
+    try {
+        const userSession = this.ensureUserSession(userId);
+        const gameType = userSession.gameType || 'WINGO';
+        
+        // Game type အလိုက် default bet sequences
+        let defaultSequence;
+        if (gameType === 'WINGO_3MIN') {
+            // WINGO 3MIN အတွက် အတည်ပြုထားသော amounts - 100,500,1000,5000
+            defaultSequence = '100,500,1000,5000';
+        } else if (gameType === 'TRX') {
+            // TRX အတွက် အတည်ပြုထားသော amounts  
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        } else {
+            // Normal WINGO အတွက်
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
         }
+        
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', defaultSequence);
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        
+        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+        
+        if (currentIndex < amounts.length) {
+            const amount = amounts[currentIndex];
+            console.log(`💰 Current bet amount for ${gameType}: ${amount}K (index: ${currentIndex})`);
+            return amount;
+        } else {
+            const amount = amounts[0] || 100;
+            await this.saveUserSetting(userId, 'current_bet_index', 0);
+            console.log(`💰 Reset to default bet amount for ${gameType}: ${amount}K`);
+            return amount;
+        }
+    } catch (error) {
+        console.error(`Error getting current bet amount for ${userId}:`, error);
+        return 100; // Fallback to minimum amount
+    }
+}
     }
 
     async saveBotSession(userId, isRunning = false, totalBets = 0, totalProfit = 0, sessionProfit = 0, sessionLoss = 0) {
@@ -2632,6 +2729,7 @@ async updateBsPatternIndex(userId, newIndex) {
             console.error(`Error getting SL bet session for user ${userId}:`, error);
             return { is_wait_mode: false, wait_bet_type: '', wait_issue: '', wait_amount: 0, wait_total_profit: 0 };
         }
+    }
     }
 
     // Placeholder functions for other features
@@ -2789,8 +2887,19 @@ async getBetHistory(userId, platform = null, limit = 10) {
     try {
         const userSession = this.ensureUserSession(userId);
         const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
-        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
         const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        
+        // Get default sequence for current game type
+        let defaultSequence;
+        if (userSession.gameType === 'WINGO_3MIN') {
+            defaultSequence = '100,500,1000,5000';
+        } else if (userSession.gameType === 'TRX') {
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        } else {
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        }
+        
         const currentAmount = await this.getCurrentBetAmount(userId);
         
         const patternsData = await this.getFormulaPatterns(userId);
@@ -2847,8 +2956,9 @@ async getBetHistory(userId, platform = null, limit = 10) {
             slStatus = `\n- SL Layer: READY (${slPattern})`;
         }
 
-        // Create formatted bet sequence with current step highlighted
-        const amounts = betSequence.split(',').map(x => {
+        // Use current sequence or default sequence for display
+        const displaySequence = betSequence || defaultSequence;
+        const amounts = displaySequence.split(',').map(x => {
             const num = parseInt(x.trim());
             return isNaN(num) ? 0 : num;
         });
@@ -2856,7 +2966,7 @@ async getBetHistory(userId, platform = null, limit = 10) {
         let formattedSequence = "";
         amounts.forEach((amount, index) => {
             if (index === currentIndex) {
-                formattedSequence += `▶️ *${amount.toLocaleString()}*`;
+                formattedSequence += `▶️ ${amount.toLocaleString()}`;
             } else {
                 formattedSequence += `${amount.toLocaleString()}`;
             }
@@ -2888,7 +2998,6 @@ Choose your betting mode:`;
 
         await this.bot.sendMessage(chatId, settingsText, {
             reply_markup: this.getBotSettingsKeyboard()
-            // Remove parse_mode: 'Markdown' to fix the formatting error
         });
     } catch (error) {
         console.error(`Error showing bot settings for user ${userId}:`, error);
@@ -3190,6 +3299,7 @@ Choose your betting mode:`;
     async handleSetBetSequence(chatId, userId, text) {
     try {
         const userSession = this.ensureUserSession(userId);
+        const gameType = userSession.gameType || 'WINGO';
         
         // Validate bet sequence format
         const betSequence = text.trim();
@@ -3199,18 +3309,27 @@ Choose your betting mode:`;
         }).filter(x => x !== null);
         
         if (amounts.length === 0) {
-            await this.bot.sendMessage(chatId, "❌ *Invalid bet sequence format!*\n\nPlease enter valid numbers separated by commas.\nExample: 100,300,700,1600,3200,7600,16000,32000", {
-                parse_mode: 'Markdown'
-            });
+            await this.bot.sendMessage(chatId, "❌ Invalid bet sequence format!\n\nPlease enter valid numbers separated by commas.\nExample: 100,300,700,1600,3200,7600,16000,32000");
             return;
         }
         
         // Check if all amounts are positive
         if (amounts.some(amount => amount <= 0)) {
-            await this.bot.sendMessage(chatId, "❌ *Invalid bet amounts!*\n\nAll bet amounts must be positive numbers.", {
-                parse_mode: 'Markdown'
-            });
+            await this.bot.sendMessage(chatId, "❌ Invalid bet amounts!\n\nAll bet amounts must be positive numbers.");
             return;
+        }
+        
+        // Game type specific validation and recommendations
+        let validationMessage = "";
+        if (gameType === 'WINGO_3MIN') {
+            const recommendedAmounts = [100, 500, 1000, 5000];
+            validationMessage = `\n\n✅ WINGO 3MIN Recommended: ${recommendedAmounts.join(', ')}`;
+        } else if (gameType === 'TRX') {
+            const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+            validationMessage = `\n\n✅ TRX Recommended: ${recommendedAmounts.join(', ')}`;
+        } else {
+            const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+            validationMessage = `\n\n✅ WINGO Recommended: ${recommendedAmounts.join(', ')}`;
         }
         
         // Save the bet sequence
@@ -3219,20 +3338,17 @@ Choose your betting mode:`;
         
         const currentAmount = amounts[0];
         
-        const successMessage = `✅ *Bet Sequence Updated!*\n\n🎯 *New Sequence:* ${betSequence}\n💰 *Current Bet:* ${currentAmount.toLocaleString()} K (Step 1)\n\n🤖 Bot will now use this sequence for auto betting.`;
+        const successMessage = `✅ Bet Sequence Updated!\n\n🎯 New Sequence: ${betSequence}\n💰 Current Bet: ${currentAmount.toLocaleString()} K (Step 1)\n🎮 Game Type: ${gameType}${validationMessage}\n\n🤖 Bot will now use this sequence for auto betting.`;
         
         await this.bot.sendMessage(chatId, successMessage, {
-            reply_markup: this.getBotSettingsKeyboard(),
-            parse_mode: 'Markdown'
+            reply_markup: this.getBotSettingsKeyboard()
         });
         
         userSession.step = 'main';
         
     } catch (error) {
         console.error(`Error setting bet sequence for user ${userId}:`, error);
-        await this.bot.sendMessage(chatId, "❌ *Error setting bet sequence.*\n\nPlease try again with valid format:\nExample: 100,300,700,1600,3200,7600,16000,32000", {
-            parse_mode: 'Markdown'
-        });
+        await this.bot.sendMessage(chatId, "❌ Error setting bet sequence.\n\nPlease try again with valid format:\nExample: 100,300,700,1600,3200,7600,16000,32000");
     }
 }
 
