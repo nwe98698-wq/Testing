@@ -794,6 +794,80 @@ class AutoLotteryBot {
     }
     
     // AutoLotteryBot class ထဲမှာ ဒီ function တွေကိုလည်း ထည့်ပါ
+    
+    async getColourFormulaBetType(userId) {
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const colourPattern = patternsData.colour_pattern;
+        let currentIndex = patternsData.colour_current_index;
+        
+        if (!colourPattern) {
+            // Fallback to random if no pattern
+            const betType = Math.random() < 0.5 ? 13 : 14;
+            return { 
+                betType, 
+                betTypeStr: betType === 13 ? "BIG (Random Fallback)" : "SMALL (Random Fallback)" 
+            };
+        }
+
+        const patternArray = colourPattern.split(',');
+        
+        if (currentIndex >= patternArray.length) {
+            currentIndex = 0; // Reset to start if at end
+        }
+
+        const currentBet = patternArray[currentIndex];
+        
+        // Map colour codes to bet types
+        let betType;
+        let betTypeStr;
+        
+        switch(currentBet) {
+            case 'G':
+                betType = 11; // GREEN
+                betTypeStr = "GREEN";
+                break;
+            case 'R':
+                betType = 10; // RED
+                betTypeStr = "RED";
+                break;
+            case 'V':
+                betType = 12; // VIOLET
+                betTypeStr = "VIOLET";
+                break;
+            default:
+                // Fallback to random
+                betType = Math.random() < 0.5 ? 13 : 14;
+                betTypeStr = betType === 13 ? "BIG" : "SMALL";
+        }
+
+        const fullBetTypeStr = `${betTypeStr} (Colour Formula ${currentIndex + 1}/${patternArray.length})`;
+
+        // Update index for next bet
+        const newIndex = currentIndex + 1;
+        await this.updateColourPatternIndex(userId, newIndex);
+
+        return { betType, betTypeStr: fullBetTypeStr };
+        
+    } catch (error) {
+        console.error(`Error getting Colour formula bet type for user ${userId}:`, error);
+        const betType = Math.random() < 0.5 ? 13 : 14;
+        return { betType, betTypeStr: betType === 13 ? "BIG" : "SMALL" };
+    }
+}
+
+async updateColourPatternIndex(userId, newIndex) {
+    try {
+        await this.db.run(
+            'UPDATE formula_patterns SET colour_current_index = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [newIndex, userId]
+        );
+        return true;
+    } catch (error) {
+        console.error(`Error updating Colour pattern index for user ${userId}:`, error);
+        return false;
+    }
+}
 async getBsFormulaBetType(userId) {
     try {
         const patternsData = await this.getFormulaPatterns(userId);
