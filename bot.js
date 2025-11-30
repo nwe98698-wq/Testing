@@ -3754,7 +3754,7 @@ async saveColourPattern(userId, pattern) {
 
         await this.bot.sendMessage(chatId, "Active broadcast feature will be implemented soon.");
     }
-}
+} // <-- ဒီနေရာမှာ AutoLotteryBot class ကို ပိတ်ပါ
 
 // Start the bot
 console.log("Auto Lottery Bot starting...");
