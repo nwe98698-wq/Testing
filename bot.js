@@ -2117,34 +2117,37 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async sendSequenceInfo(userId, chatId, betResult) {
-        try {
-            const userSession = userSessions[userId];
-            if (!userSession) return;
+    try {
+        const userSession = userSessions[userId];
+        if (!userSession) return;
 
-            const slSession = await this.getSlBetSession(userId);
+        const slSession = await this.getSlBetSession(userId);
+        
+        if (!slSession.is_wait_mode) {
+            // ❌ ဒီလိုင်းကိုဖျက်ပါ (နှစ်ခါခေါ်မိနေလို့)
+            // const newIndex = await this.updateBetSequence(userId, betResult);
             
-            if (!slSession.is_wait_mode) {
-                const newIndex = await this.updateBetSequence(userId, betResult);
-                const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
-                const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
-                const nextAmount = amounts[newIndex] || amounts[0];
+            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+            const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
+            const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+            const nextAmount = amounts[currentIndex] || amounts[0];
 
-                let sequenceMessage = "";
-                if (betResult === "WIN") {
-                    sequenceMessage = `🔄 Sequence Reset to Step 1\n`;
-                } else {
-                    sequenceMessage = `📈 Next Bet: Step ${newIndex + 1} (${nextAmount.toLocaleString()} K)\n`;
-                }
-
-                sequenceMessage += `🎯 Bet Sequence: ${betSequence}`;
-
-                await this.bot.sendMessage(chatId, sequenceMessage);
+            let sequenceMessage = "";
+            if (betResult === "WIN") {
+                sequenceMessage = `🔄 Sequence Reset to Step 1\n`;
+            } else {
+                sequenceMessage = `📈 Next Bet: Step ${currentIndex + 1} (${nextAmount.toLocaleString()} K)\n`;
             }
 
-        } catch (error) {
-            console.error(`Error sending sequence info to user ${userId}:`, error);
+            sequenceMessage += `🎯 Bet Sequence: ${betSequence}`;
+
+            await this.bot.sendMessage(chatId, sequenceMessage);
         }
+
+    } catch (error) {
+        console.error(`Error sending sequence info to user ${userId}:`, error);
     }
+}
 
     async updateBetSequence(userId, result) {
     try {
