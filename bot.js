@@ -323,50 +323,72 @@ class LotteryAPI {
     }
 
     async getCurrentIssue() {
-        try {
-            let typeId;
-            let endpoint;
-            
-            if (this.gameType === 'TRX') {
-                typeId = 13;
-                endpoint = 'GetTrxGameIssue';
-            } else if (this.gameType === 'WINGO_3MIN') {
-                typeId = 2;
-                endpoint = 'GetGameIssue';
-            } else {
-                typeId = 1;
-                endpoint = 'GetGameIssue';
-            }
-
-            const body = {
-                "typeId": typeId,
-                "language": 0,
-                "random": "b05034ba4a2642009350ee863f29e2e9",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
-
-            const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    if (this.gameType === 'TRX') {
-                        return result.data?.predraw?.issueNumber || '';
-                    } else {
-                        return result.data?.issueNumber || result.data?.predraw?.issueNumber || '';
-                    }
-                }
-            }
-            return "";
-        } catch (error) {
-            console.error('Error getting current issue:', error.message);
-            return "";
+    try {
+        let typeId;
+        let endpoint;
+        
+        if (this.gameType === 'TRX') {
+            typeId = 13;
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'WINGO_3MIN') {
+            typeId = 2;  // WINGO 3 MIN uses typeId 2
+            endpoint = 'GetGameIssue';
+        } else {
+            typeId = 1;
+            endpoint = 'GetGameIssue';
         }
+
+        const body = {
+            "typeId": typeId,
+            "language": 0,
+            "random": "b05034ba4a2642009350ee863f29e2e9",
+            "timestamp": Math.floor(Date.now() / 1000)
+        };
+        body.signature = this.signMd5(body);
+
+        console.log(`🔍 Getting current issue for ${this.gameType}, typeId: ${typeId}`);
+
+        const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
+            headers: this.headers,
+            timeout: 10000
+        });
+
+        console.log(`📥 Issue response for ${this.gameType}:`, JSON.stringify(response.data));
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.msgCode === 0) {
+                let issueNumber = '';
+                
+                if (this.gameType === 'TRX') {
+                    issueNumber = result.data?.predraw?.issueNumber || '';
+                } else if (this.gameType === 'WINGO_3MIN') {
+                    // WINGO 3 MIN uses different response format
+                    issueNumber = result.data?.issueNumber || result.data?.predraw?.issueNumber || '';
+                    if (!issueNumber && result.data) {
+                        // Try to find issue number in data object
+                        const dataStr = JSON.stringify(result.data);
+                        const issueMatch = dataStr.match(/"issueNumber":"(\d+)"/);
+                        if (issueMatch) {
+                            issueNumber = issueMatch[1];
+                        }
+                    }
+                } else {
+                    issueNumber = result.data?.issueNumber || result.data?.predraw?.issueNumber || '';
+                }
+                
+                console.log(`✅ Current issue for ${this.gameType}: ${issueNumber}`);
+                return issueNumber;
+            } else {
+                console.log(`❌ Error getting issue for ${this.gameType}:`, result.msg);
+            }
+        }
+        return "";
+    } catch (error) {
+        console.error(`❌ Error getting current issue for ${this.gameType}:`, error.message);
+        return "";
     }
+}
 
     async placeBet(amount, betType) {
     try {
@@ -393,22 +415,37 @@ class LotteryAPI {
                 "timestamp": Math.floor(Date.now() / 1000)
             };
         } 
-        // 777 platform အတွက် - original calculation ကို ပြန်သုံးမယ်
+        // 777 platform အတွက် - WINGO 3 MIN အတွက် သီးသန့် handling
         else {
-            // 777 platform calculation (original)
-            const baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
-            const betCount = Math.floor(amount / baseAmount);
+            // WINGO 3 MIN အတွက် amount calculation ပြောင်းမယ်
+            let baseAmount, betCount;
+            
+            if (this.gameType === 'WINGO_3MIN') {
+                // WINGO 3 MIN အတွက် တိုက်ရိုက် amount သုံးမယ်
+                baseAmount = amount;
+                betCount = 1;
+                console.log(`🎯 WINGO 3 MIN - Using direct amount: ${amount}`);
+            } else {
+                // Normal WINGO/TRX အတွက် original calculation
+                baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
+                betCount = Math.floor(amount / baseAmount);
+                console.log(`💰 Normal Calculation - Amount: ${amount}, BaseAmount: ${baseAmount}, BetCount: ${betCount}`);
+            }
+            
             const isColourBet = [10, 11, 12].includes(betType);
             
-            // TRX game အတွက် typeId သတ်မှတ်ခြင်း
-            const typeId = this.gameType === 'TRX' ? 13 : 1;
+            // Game type အလိုက် configuration
+            let typeId, gameType;
             
-            // Game type သတ်မှတ်ခြင်း
-            let gameType;
             if (this.gameType === 'TRX') {
-                gameType = 2; // TRX အတွက် gameType 2
+                typeId = 13;
+                gameType = 2;
+            } else if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;  // WINGO 3 MIN uses typeId 2
+                gameType = isColourBet ? 0 : 2;
             } else {
-                gameType = isColourBet ? 0 : 2; // Colour bet: 0, BIG/SMALL: 2
+                typeId = 1;
+                gameType = isColourBet ? 0 : 2;
             }
 
             requestBody = {
@@ -416,14 +453,12 @@ class LotteryAPI {
                 "issuenumber": issueId,
                 "language": 0,
                 "gameType": gameType,
-                "amount": baseAmount, // base amount ကို သုံးမယ်
-                "betCount": betCount, // bet count ကို သုံးမယ်
+                "amount": baseAmount,
+                "betCount": betCount,
                 "selectType": betType,
                 "random": this.randomKey(),
                 "timestamp": Math.floor(Date.now() / 1000)
             };
-
-            console.log(`💰 777 Platform Calculation - Amount: ${amount}, BaseAmount: ${baseAmount}, BetCount: ${betCount}, Total: ${baseAmount * betCount}`);
         }
 
         requestBody.signature = this.signMd5(requestBody);
@@ -472,20 +507,21 @@ class LotteryAPI {
                 const errorMsg = result.msg || result.message || result.error || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
                 
-                // Amount error ဖြစ်ရင် bet sequence ကို reset လုပ်မယ်
-                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient') || errorMsg.includes('Betting amount error')) {
+                // "The current period is settled" error အတွက် special handling
+                if (errorMsg.includes('settled') || errorMsg.includes('period') || errorMsg.includes('current')) {
                     return { 
                         success: false, 
-                        message: `Amount error: ${errorMsg}. Please check your bet amount.`, 
+                        message: "This game period has already ended. Please wait for the next period.", 
                         issueId, 
                         potentialProfit: 0 
                     };
                 }
                 
-                if (errorMsg.includes('time') || errorMsg.includes('issue')) {
+                // Amount error ဖြစ်ရင် bet sequence ကို reset လုပ်မယ်
+                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient') || errorMsg.includes('Betting amount error')) {
                     return { 
                         success: false, 
-                        message: `Timing error: ${errorMsg}. Please try again.`, 
+                        message: `Amount error: ${errorMsg}. Please check your bet amount.`, 
                         issueId, 
                         potentialProfit: 0 
                     };
@@ -2222,78 +2258,81 @@ Last update: ${getMyanmarTime()}`;
     }
 
     startAutoBetting(userId) {
-        const userSession = userSessions[userId];
-        if (!userSession || !userSession.apiInstance) {
-            console.log(`❌ No user session or API instance for user ${userId}`);
+    const userSession = userSessions[userId];
+    if (!userSession || !userSession.apiInstance) {
+        console.log(`❌ No user session or API instance for user ${userId}`);
+        return;
+    }
+
+    let lastIssue = "";
+    let consecutiveFailures = 0;
+    const maxFailures = 3;
+
+    const bettingLoop = async () => {
+        if (!autoBettingTasks[userId]) {
+            console.log(`🛑 Auto betting stopped for user ${userId}`);
             return;
         }
 
-        let lastIssue = "";
-        let consecutiveFailures = 0;
-        const maxFailures = 3;
-
-        const bettingLoop = async () => {
-            if (!autoBettingTasks[userId]) {
-                console.log(`🛑 Auto betting stopped for user ${userId}`);
+        try {
+            if (waitingForResults[userId]) {
+                console.log(`⏳ User ${userId} waiting for results, checking again in 3 seconds`);
+                setTimeout(bettingLoop, 3000);
                 return;
             }
 
-            try {
-                if (waitingForResults[userId]) {
-                    console.log(`⏳ User ${userId} waiting for results, checking again in 3 seconds`);
-                    setTimeout(bettingLoop, 3000);
-                    return;
-                }
-
-                const currentIssue = await userSession.apiInstance.getCurrentIssue();
-                console.log(`🔍 Current issue for user ${userId}: ${currentIssue}, last issue: ${lastIssue}`);
+            const currentIssue = await userSession.apiInstance.getCurrentIssue();
+            console.log(`🔍 Current issue for user ${userId}: ${currentIssue}, last issue: ${lastIssue}`);
+            
+            if (currentIssue && currentIssue !== lastIssue) {
+                console.log(`🆕 New issue detected: ${currentIssue} for user ${userId}`);
                 
-                if (currentIssue && currentIssue !== lastIssue) {
-                    console.log(`🆕 New issue detected: ${currentIssue} for user ${userId}`);
-                    
-                    setTimeout(async () => {
-                        try {
-                            if (!autoBettingTasks[userId]) return;
+                // WINGO 3 MIN အတွက် ပိုပြီး စောင့်မယ်
+                const delay = userSession.gameType === 'WINGO_3MIN' ? 5000 : 3000;
+                
+                setTimeout(async () => {
+                    try {
+                        if (!autoBettingTasks[userId]) return;
 
-                            if (!(await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue))) {
-                                console.log(`🎯 Placing bet for user ${userId} on issue ${currentIssue}`);
-                                await this.placeAutoBet(userId, currentIssue);
-                                lastIssue = currentIssue;
-                                consecutiveFailures = 0;
-                            } else {
-                                console.log(`⏭️ User ${userId} already bet on issue ${currentIssue}`);
-                            }
-                            
-                            setTimeout(bettingLoop, 2000);
-                        } catch (error) {
-                            console.error(`❌ Error in betting timeout for user ${userId}:`, error);
-                            setTimeout(bettingLoop, 5000);
+                        if (!(await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue))) {
+                            console.log(`🎯 Placing bet for user ${userId} on issue ${currentIssue}`);
+                            await this.placeAutoBet(userId, currentIssue);
+                            lastIssue = currentIssue;
+                            consecutiveFailures = 0;
+                        } else {
+                            console.log(`⏭️ User ${userId} already bet on issue ${currentIssue}`);
                         }
-                    }, 2000);
-                } else {
-                    console.log(`🔄 Same issue or no issue for user ${userId}, checking again in 3 seconds`);
-                    setTimeout(bettingLoop, 3000);
-                }
-            } catch (error) {
-                console.error(`❌ Auto betting error for user ${userId}:`, error);
-                consecutiveFailures++;
-                
-                if (consecutiveFailures >= maxFailures) {
-                    console.log(`🛑 Too many errors, stopping bot for user ${userId}`);
-                    this.bot.sendMessage(userId, "❌ Auto Bot Stopped - Too many errors!").catch(console.error);
-                    delete autoBettingTasks[userId];
-                    delete waitingForResults[userId];
-                    this.saveBotSession(userId, false);
-                } else {
-                    console.log(`🔄 Retrying after error for user ${userId} (${consecutiveFailures}/${maxFailures})`);
-                    setTimeout(bettingLoop, 5000);
-                }
+                        
+                        setTimeout(bettingLoop, 2000);
+                    } catch (error) {
+                        console.error(`❌ Error in betting timeout for user ${userId}:`, error);
+                        setTimeout(bettingLoop, 5000);
+                    }
+                }, delay);
+            } else {
+                console.log(`🔄 Same issue or no issue for user ${userId}, checking again in 3 seconds`);
+                setTimeout(bettingLoop, 3000);
             }
-        };
+        } catch (error) {
+            console.error(`❌ Auto betting error for user ${userId}:`, error);
+            consecutiveFailures++;
+            
+            if (consecutiveFailures >= maxFailures) {
+                console.log(`🛑 Too many errors, stopping bot for user ${userId}`);
+                this.bot.sendMessage(userId, "❌ Auto Bot Stopped - Too many errors!").catch(console.error);
+                delete autoBettingTasks[userId];
+                delete waitingForResults[userId];
+                this.saveBotSession(userId, false);
+            } else {
+                console.log(`🔄 Retrying after error for user ${userId} (${consecutiveFailures}/${maxFailures})`);
+                setTimeout(bettingLoop, 5000);
+            }
+        }
+    };
 
-        console.log(`🚀 Starting auto betting loop for user ${userId}`);
-        bettingLoop();
-    }
+    console.log(`🚀 Starting auto betting loop for user ${userId}`);
+    bettingLoop();
+}
 
     async placeAutoBet(userId, issue) {
     const userSession = userSessions[userId];
