@@ -377,32 +377,30 @@ class LotteryAPI {
 
         console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}`);
 
+        // Amount validation - API က လက်ခံတဲ့ amount format ဖြစ်အောင်
         let validAmount = amount;
         
+        // Amount ကို integer အဖြစ် သေချာစေခြင်း
         if (typeof validAmount !== 'number') {
             validAmount = parseInt(validAmount);
         }
         
-        // WINGO_3MIN amount validation - ONLY allow exact amounts
-        if (this.gameType === 'WINGO_3MIN') {
-            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000 ];
-            
-            // Strict validation - only allow exact amounts
-            if (!allowedAmounts.includes(validAmount)) {
-                console.log(`❌ Invalid amount for WINGO_3MIN: ${validAmount}. Allowed: ${allowedAmounts.join(', ')}`);
-                return { 
-                    success: false, 
-                    message: `Invalid amount for WINGO 3MIN. Allowed amounts: ${allowedAmounts.join(', ')}`, 
-                    issueId: "", 
-                    potentialProfit: 0 
-                };
-            }
+        // Minimum bet amount check (အကယ်၍ ရှိရင်)
+        if (validAmount < 100) {
+            validAmount = 100;
+        }
+        
+        // Maximum bet amount check (အကယ်၍ ရှိရင်)
+        if (validAmount > 50000) {
+            validAmount = 50000;
         }
 
         const currentTime = Math.floor(Date.now() / 1000);
         let requestBody;
 
+        // For TRX game - TRX မှာ Colour bet မရှိပါ
         if (this.gameType === 'TRX') {
+            // TRX မှာ Colour bet မရှိဘူး၊ BIG/SMALL ပဲရှိတယ်
             if (betType === 10 || betType === 11 || betType === 12) {
                 return { 
                     success: false, 
@@ -416,63 +414,71 @@ class LotteryAPI {
                 "typeId": 13,
                 "issuenumber": issueId,
                 "language": 0,
-                "gameType": 2,
-                "amount": validAmount,
+                "gameType": 2,  // TRX uses gameType 2
+                "amount": validAmount,  // validated amount
                 "betCount": 1,
                 "selectType": betType,
                 "random": this.randomKey(),
                 "timestamp": currentTime
             };
-        } else if (this.gameType === 'WINGO_3MIN') {
+        } 
+        // For WINGO 3 MIN
+        else if (this.gameType === 'WINGO_3MIN') {
             const isColourBet = [10, 11, 12].includes(betType);
             
             if (isColourBet) {
+                // Colour betting for WINGO 3 MIN
                 requestBody = {
-                    "typeId": 2,
+                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 0,
-                    "amount": validAmount,
+                    "gameType": 0,  // 0 for colour betting
+                    "amount": validAmount,  // validated amount
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
                     "timestamp": currentTime
                 };
             } else {
+                // BIG/SMALL betting for WINGO 3 MIN
                 requestBody = {
-                    "typeId": 2,
+                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 2,
-                    "amount": validAmount,
+                    "gameType": 2,  // 2 for BIG/SMALL betting
+                    "amount": validAmount,  // validated amount
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
                     "timestamp": currentTime
                 };
             }
-        } else {
+        }
+        // For normal WINGO
+        else {
             const isColourBet = [10, 11, 12].includes(betType);
             
             if (isColourBet) {
+                // Colour betting for normal WINGO
                 requestBody = {
-                    "typeId": 1,
+                    "typeId": 1,  // WINGO uses typeId 1
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 0,
-                    "amount": validAmount,
+                    "gameType": 0,  // 0 for colour betting
+                    "amount": validAmount,  // validated amount
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
                     "timestamp": currentTime
                 };
             } else {
+                // BIG/SMALL betting for normal WINGO
                 requestBody = {
-                    "typeId": 1,
+                    "typeId": 1,  // WINGO uses typeId 1
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 2,
-                    "amount": validAmount,
+                    "gameType": 2,  // 2 for BIG/SMALL betting
+                    "amount": validAmount,  // validated amount
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
@@ -481,10 +487,12 @@ class LotteryAPI {
             }
         }
 
+        // Generate signature
         requestBody.signature = this.signMd5(requestBody);
 
         console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
 
+        // Determine endpoint
         let endpoint;
         if (this.gameType === 'TRX') {
             endpoint = 'GameTrxBetting';
@@ -503,11 +511,11 @@ class LotteryAPI {
             const result = response.data;
             if (result.code === 0 || result.msgCode === 0) {
                 let potentialProfit;
-                if (betType === 10 || betType === 11) {
+                if (betType === 10 || betType === 11) { // RED or GREEN
                     potentialProfit = Math.floor(validAmount * 0.96);
-                } else if (betType === 12) {
+                } else if (betType === 12) { // VIOLET
                     potentialProfit = Math.floor(validAmount * 0.44);
-                } else {
+                } else { // BIG or SMALL
                     potentialProfit = Math.floor(validAmount * 0.96);
                 }
                 
@@ -521,6 +529,16 @@ class LotteryAPI {
             } else {
                 const errorMsg = result.msg || result.message || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
+                
+                // Specific error handling for amount errors
+                if (errorMsg.includes('amount') || errorMsg.includes('betting') || errorMsg.includes('error')) {
+                    return { 
+                        success: false, 
+                        message: `Bet amount error: ${validAmount}K may be invalid. Please try a different amount.`, 
+                        issueId, 
+                        potentialProfit: 0 
+                    };
+                }
                 
                 return { 
                     success: false, 
@@ -2208,139 +2226,146 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async placeAutoBet(userId, issue) {
-        const userSession = userSessions[userId];
-        if (!userSession || !userSession.loggedIn) {
-            console.log(`❌ User ${userId} not logged in for auto bet`);
+    const userSession = userSessions[userId];
+    if (!userSession || !userSession.loggedIn) {
+        console.log(`❌ User ${userId} not logged in for auto bet`);
+        return;
+    }
+
+    waitingForResults[userId] = true;
+
+    const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+    
+    let betType, betTypeStr;
+
+    console.log(`🎯 Auto betting for user ${userId}, mode: ${randomMode}, game: ${userSession.gameType}`);
+
+    try {
+        // Determine bet type based on random mode
+        switch(randomMode) {
+            case 'big':
+                betType = 13;
+                betTypeStr = "BIG";
+                break;
+            case 'small':
+                betType = 14;
+                betTypeStr = "SMALL";
+                break;
+            case 'follow':
+                const followResult = await this.getFollowBetType(userSession.apiInstance);
+                betType = followResult.betType;
+                betTypeStr = followResult.betTypeStr;
+                break;
+            case 'bs_formula':
+                const bsResult = await this.getBsFormulaBetType(userId);
+                betType = bsResult.betType;
+                betTypeStr = bsResult.betTypeStr;
+                break;
+            case 'colour_formula':
+                const colourResult = await this.getColourFormulaBetType(userId);
+                betType = colourResult.betType;
+                betTypeStr = colourResult.betTypeStr;
+                break;
+            default: // random bot
+                betType = Math.random() < 0.5 ? 13 : 14;
+                betTypeStr = betType === 13 ? "BIG" : "SMALL";
+        }
+
+        console.log(`🎲 Selected bet type: ${betType} (${betTypeStr}) for user ${userId}`);
+
+        // TRX game မှာ Colour bet ကို BIG/SMALL ပြောင်းပေးခြင်း
+        if (userSession.gameType === 'TRX' && (betType === 10 || betType === 11 || betType === 12)) {
+            console.log(`🔄 TRX game - Converting colour bet to BIG/SMALL for user ${userId}`);
+            betType = Math.random() < 0.5 ? 13 : 14;
+            betTypeStr = `${betType === 13 ? 'BIG' : 'SMALL'} (Colour Formula Converted)`;
+        }
+
+        // Bet amount ကို current bet sequence index နဲ့ ရယူမယ်
+        const amount = await this.getCurrentBetAmount(userId);
+        console.log(`💰 Bet amount for user ${userId}: ${amount} (from sequence)`);
+
+        const balance = await userSession.apiInstance.getBalance();
+
+        if (amount > 0 && balance < amount) {
+            console.log(`💸 Insufficient balance for user ${userId}: ${balance} < ${amount}`);
+            this.bot.sendMessage(userId, `💸 Insufficient Balance!\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`).catch(console.error);
+            delete autoBettingTasks[userId];
+            waitingForResults[userId] = false;
             return;
         }
 
-        waitingForResults[userId] = true;
-
-        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+        // Check profit/loss targets
+        const botSession = await this.getBotSession(userId);
+        const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
+        const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
         
-        let betType, betTypeStr;
+        const netProfit = botSession.session_profit - botSession.session_loss;
+        
+        if (profitTarget > 0 && netProfit >= profitTarget) {
+            console.log(`🎯 Profit target reached for user ${userId}: ${netProfit} >= ${profitTarget}`);
+            this.bot.sendMessage(userId, `🎯 Profit Target Reached!\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`).catch(console.error);
+            delete autoBettingTasks[userId];
+            waitingForResults[userId] = false;
+            await this.saveBotSession(userId, false);
+            return;
+        }
+        
+        if (lossTarget > 0 && botSession.session_loss >= lossTarget) {
+            console.log(`🛑 Loss target reached for user ${userId}: ${botSession.session_loss} >= ${lossTarget}`);
+            this.bot.sendMessage(userId, `🛑 Loss Target Reached!\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`).catch(console.error);
+            delete autoBettingTasks[userId];
+            waitingForResults[userId] = false;
+            await this.saveBotSession(userId, false);
+            return;
+        }
 
-        console.log(`🎯 Auto betting for user ${userId}, mode: ${randomMode}, game: ${userSession.gameType}`);
+        // Send betting message with sequence info
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+        const totalSteps = amounts.length;
+        
+        const betMessage = `🎰 Placing Auto Bet\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Step: ${currentIndex + 1}/${totalSteps}\n• Issue: ${issue}`;
+        await this.bot.sendMessage(userId, betMessage);
 
-        try {
-            switch(randomMode) {
-                case 'big':
-                    betType = 13;
-                    betTypeStr = "BIG";
-                    break;
-                case 'small':
-                    betType = 14;
-                    betTypeStr = "SMALL";
-                    break;
-                case 'follow':
-                    const followResult = await this.getFollowBetType(userSession.apiInstance);
-                    betType = followResult.betType;
-                    betTypeStr = followResult.betTypeStr;
-                    break;
-                case 'bs_formula':
-                    const bsResult = await this.getBsFormulaBetType(userId);
-                    betType = bsResult.betType;
-                    betTypeStr = bsResult.betTypeStr;
-                    break;
-                case 'colour_formula':
-                    const colourResult = await this.getColourFormulaBetType(userId);
-                    betType = colourResult.betType;
-                    betTypeStr = colourResult.betTypeStr;
-                    break;
-                default:
-                    betType = Math.random() < 0.5 ? 13 : 14;
-                    betTypeStr = betType === 13 ? "BIG" : "SMALL";
+        console.log(`📤 Placing bet for user ${userId}: ${betTypeStr} ${amount}K on ${issue} (Step ${currentIndex + 1}/${totalSteps})`);
+        const result = await userSession.apiInstance.placeBet(amount, betType);
+        
+        if (result.success) {
+            console.log(`✅ Bet placed successfully for user ${userId}`);
+            await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
+            
+            if (!issueCheckers[userId]) {
+                console.log(`🔍 Starting issue checker for user ${userId}`);
+                this.startIssueChecker(userId);
             }
 
-            console.log(`🎲 Selected bet type: ${betType} (${betTypeStr}) for user ${userId}`);
-
-            if (userSession.gameType === 'TRX' && (betType === 10 || betType === 11 || betType === 12)) {
-                console.log(`🔄 TRX game - Converting colour bet to BIG/SMALL for user ${userId}`);
-                betType = Math.random() < 0.5 ? 13 : 14;
-                betTypeStr = `${betType === 13 ? 'BIG' : 'SMALL'} (Colour Formula Converted)`;
-            }
-
-            const amount = await this.getCurrentBetAmount(userId);
-            console.log(`💰 Bet amount for user ${userId}: ${amount} (from sequence)`);
-
-            const balance = await userSession.apiInstance.getBalance();
-
-            if (amount > 0 && balance < amount) {
-                console.log(`💸 Insufficient balance for user ${userId}: ${balance} < ${amount}`);
-                this.bot.sendMessage(userId, `💸 Insufficient Balance!\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`).catch(console.error);
-                delete autoBettingTasks[userId];
-                waitingForResults[userId] = false;
-                return;
-            }
-
-            const botSession = await this.getBotSession(userId);
-            const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
-            const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
+            const successMessage = `✅ Bet Placed Successfully!\n\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Step: ${currentIndex + 1}/${totalSteps}`;
+            await this.bot.sendMessage(userId, successMessage);
             
-            const netProfit = botSession.session_profit - botSession.session_loss;
+        } else {
+            console.log(`❌ Bet failed for user ${userId}: ${result.message}`);
             
-            if (profitTarget > 0 && netProfit >= profitTarget) {
-                console.log(`🎯 Profit target reached for user ${userId}: ${netProfit} >= ${profitTarget}`);
-                this.bot.sendMessage(userId, `🎯 Profit Target Reached!\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`).catch(console.error);
-                delete autoBettingTasks[userId];
-                waitingForResults[userId] = false;
-                await this.saveBotSession(userId, false);
-                return;
-            }
-            
-            if (lossTarget > 0 && botSession.session_loss >= lossTarget) {
-                console.log(`🛑 Loss target reached for user ${userId}: ${botSession.session_loss} >= ${lossTarget}`);
-                this.bot.sendMessage(userId, `🛑 Loss Target Reached!\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`).catch(console.error);
-                delete autoBettingTasks[userId];
-                waitingForResults[userId] = false;
-                await this.saveBotSession(userId, false);
-                return;
-            }
-
-            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
-            const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
-            const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
-            const totalSteps = amounts.length;
-            
-            const betMessage = `🎰 Placing Auto Bet\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Step: ${currentIndex + 1}/${totalSteps}\n• Issue: ${issue}`;
-            await this.bot.sendMessage(userId, betMessage);
-
-            console.log(`📤 Placing bet for user ${userId}: ${betTypeStr} ${amount}K on ${issue} (Step ${currentIndex + 1}/${totalSteps})`);
-            const result = await userSession.apiInstance.placeBet(amount, betType);
-            
-            if (result.success) {
-                console.log(`✅ Bet placed successfully for user ${userId}`);
-                await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
+            // Amount error ဖြစ်ရင် sequence ကို reset လုပ်မယ်
+            if (result.message.includes('amount') || result.message.includes('betting')) {
+                console.log(`🔄 Amount error detected, resetting bet sequence for user ${userId}`);
+                await this.saveUserSetting(userId, 'current_bet_index', 0);
                 
-                if (!issueCheckers[userId]) {
-                    console.log(`🔍 Starting issue checker for user ${userId}`);
-                    this.startIssueChecker(userId);
-                }
-
-                const successMessage = `✅ Bet Placed Successfully!\n\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Step: ${currentIndex + 1}/${totalSteps}`;
-                await this.bot.sendMessage(userId, successMessage);
-                
+                const errorMessage = `❌ Bet Failed - Amount Error\n\nError: ${result.message}\n\n🔄 Bet sequence has been reset to step 1.`;
+                await this.bot.sendMessage(userId, errorMessage);
             } else {
-                console.log(`❌ Bet failed for user ${userId}: ${result.message}`);
-                
-                if (result.message.includes('amount') || result.message.includes('betting')) {
-                    console.log(`🔄 Amount error detected, resetting bet sequence for user ${userId}`);
-                    await this.saveUserSetting(userId, 'current_bet_index', 0);
-                    
-                    const errorMessage = `❌ Bet Failed - Amount Error\n\nError: ${result.message}\n\n🔄 Bet sequence has been reset to step 1.`;
-                    await this.bot.sendMessage(userId, errorMessage);
-                } else {
-                    const errorMessage = `❌ Bet Failed\n\nError: ${result.message}`;
-                    await this.bot.sendMessage(userId, errorMessage);
-                }
-                
-                waitingForResults[userId] = false;
+                const errorMessage = `❌ Bet Failed\n\nError: ${result.message}`;
+                await this.bot.sendMessage(userId, errorMessage);
             }
-        } catch (error) {
-            console.error(`❌ Error in placeAutoBet for user ${userId}:`, error);
+            
+            // Reset waiting state on failure
             waitingForResults[userId] = false;
         }
+    } catch (error) {
+        console.error(`❌ Error in placeAutoBet for user ${userId}:`, error);
+        waitingForResults[userId] = false;
     }
+}
 
     async getFollowBetType(apiInstance) {
         try {
