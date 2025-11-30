@@ -595,98 +595,25 @@ async getRecentResults(count = 10) {
                     if (settled) {
                         const number = String(settled.number || '');
                         let colour = 'UNKNOWN';
-                        let resultType = 'UNKNOWN';
-                        
-                        if (['0','5'].includes(number)) {
+                        if (['0', '5'].includes(number)) {
                             colour = 'VIOLET';
-                        } else if (['1','3','7','9'].includes(number)) {
+                        } else if (['1', '3', '7', '9'].includes(number)) {
                             colour = 'GREEN';
-                        } else if (['2','4','6','8'].includes(number)) {
+                        } else if (['2', '4', '6', '8'].includes(number)) {
                             colour = 'RED';
-                        }
-                        
-                        if (['0','1','2','3','4'].includes(number)) {
-                            resultType = "SMALL";
-                        } else {
-                            resultType = "BIG";
                         }
                         
                         return [{
                             issueNumber: settled.issueNumber,
                             number: number,
-                            colour: colour,
-                            resultType: resultType
+                            colour: colour
                         }];
                     }
                 }
             }
-            
-            // TRX အတွက် အခြား API endpoint ကြိုးစားကြည့်ခြင်း
-            const historyBody = {
-                "pageNo": 1,
-                "pageSize": count,
-                "language": 0,
-                "typeId": 13,
-                "random": "6DEB0766860C42151A193692ED16D65A",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            historyBody.signature = this.signMd5(historyBody);
-
-            const historyResponse = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (historyResponse.status === 200) {
-                const historyResult = historyResponse.data;
-                if (historyResult.msgCode === 0) {
-                    const dataStr = JSON.stringify(historyResponse.data);
-                    const startIdx = dataStr.indexOf('[');
-                    const endIdx = dataStr.indexOf(']') + 1;
-                    
-                    if (startIdx !== -1 && endIdx !== -1) {
-                        const resultsJson = dataStr.substring(startIdx, endIdx);
-                        const results = JSON.parse(resultsJson);
-                        
-                        const formattedResults = results.map(resultItem => {
-                            const number = String(resultItem.number || '');
-                            let colour = 'UNKNOWN';
-                            let resultType = 'UNKNOWN';
-                            
-                            if (['0','5'].includes(number)) {
-                                colour = 'VIOLET';
-                            } else if (['1','3','7','9'].includes(number)) {
-                                colour = 'GREEN';
-                            } else if (['2','4','6','8'].includes(number)) {
-                                colour = 'RED';
-                            }
-                            
-                            if (['0','1','2','3','4'].includes(number)) {
-                                resultType = "SMALL";
-                            } else {
-                                resultType = "BIG";
-                            }
-                            
-                            return {
-                                issueNumber: resultItem.issueNumber,
-                                number: number,
-                                colour: colour,
-                                resultType: resultType
-                            };
-                        });
-                        
-                        return formattedResults.slice(0, count);
-                    }
-                }
-            }
         } else {
-            // WINGO and WINGO_3MIN games
-            let typeId;
-            if (this.gameType === 'WINGO_3MIN') {
-                typeId = 2;
-            } else {
-                typeId = 1;
-            }
+            // WINGO_3MIN အတွက် typeId သတ်မှတ်ခြင်း
+            const typeId = this.gameType === 'WINGO_3MIN' ? 2 : 1;
             
             const body = {
                 "pageNo": 1,
@@ -725,15 +652,9 @@ async getRecentResults(count = 10) {
                             } else {
                                 resultItem.colour = 'UNKNOWN';
                             }
-                            
-                            if (['0','1','2','3','4'].includes(number)) {
-                                resultItem.resultType = "SMALL";
-                            } else {
-                                resultItem.resultType = "BIG";
-                            }
                         });
                         
-                        return results.slice(0, count);
+                        return results;
                     }
                 }
             }
@@ -1622,41 +1543,157 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async handleResults(chatId, userId) {
-        const userSession = this.ensureUserSession(userId);
-        const platformName = '777 Big Win';
-        const gameType = userSession.gameType || 'WINGO';
+    const userSession = this.ensureUserSession(userId);
+    const platformName = '777 Big Win';
+    const gameType = userSession.gameType || 'WINGO';
 
-        try {
-            let results;
-            if (userSession.apiInstance) {
-                results = await userSession.apiInstance.getRecentResults(10);
-            } else {
-                const api = new LotteryAPI(userSession.platform || '777', gameType);
-                results = await api.getRecentResults(10);
-            }
+    try {
+        let results;
+        if (userSession.apiInstance) {
+            results = await userSession.apiInstance.getRecentResults(10);
+        } else {
+            const api = new LotteryAPI(userSession.platform || '777', gameType);
+            results = await api.getRecentResults(10);
+        }
 
-            if (!results || results.length === 0) {
-                await this.bot.sendMessage(chatId, "No recent results available.");
-                return;
-            }
+        if (!results || results.length === 0) {
+            await this.bot.sendMessage(chatId, "No recent results available.");
+            return;
+        }
 
-            let resultsText = `Recent Game Results - ${platformName} (${gameType})\n\n`;
-            results.forEach((result, i) => {
-                const issueNo = result.issueNumber || 'N/A';
-                const number = result.number || 'N/A';
-                const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
-                const colour = result.colour || 'UNKNOWN';
+        let resultsText = `Recent Game Results - ${platformName} (${gameType})\n\n`;
+        results.forEach((result, i) => {
+            const issueNo = result.issueNumber || 'N/A';
+            const number = result.number || 'N/A';
+            const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
+            const colour = result.colour || 'UNKNOWN';
 
-                resultsText += `${i+1}. ${issueNo} - ${number} - ${resultType} ${colour}\n`;
+            resultsText += `${i+1}. ${issueNo} - ${number} - ${resultType} ${colour}\n`;
+        });
+
+        resultsText += `\nLast updated: ${getMyanmarTime()}`;
+
+        await this.bot.sendMessage(chatId, resultsText);
+    } catch (error) {
+        await this.bot.sendMessage(chatId, `Error getting results: ${error.message}`);
+    }
+}
+
+// TRX Game အတွက် Recent Results ကောက်ယူခြင်း
+async getRecentResults(count = 10) {
+    try {
+        if (this.gameType === 'TRX') {
+            const body = {
+                "typeId": 13,
+                "language": 0,
+                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
+
+            const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
+                headers: this.headers,
+                timeout: 10000
             });
 
-            resultsText += `\nLast updated: ${getMyanmarTime()}`;
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const settled = result.data?.settled;
+                    if (settled) {
+                        const number = String(settled.number || '');
+                        let colour = 'UNKNOWN';
+                        if (['0', '5'].includes(number)) {
+                            colour = 'VIOLET';
+                        } else if (['1', '3', '7', '9'].includes(number)) {
+                            colour = 'GREEN';
+                        } else if (['2', '4', '6', '8'].includes(number)) {
+                            colour = 'RED';
+                        }
+                        
+                        return [{
+                            issueNumber: settled.issueNumber,
+                            number: number,
+                            colour: colour
+                        }];
+                    }
+                }
+            }
+        } else {
+            // WINGO အတွက် results ကောက်ယူခြင်း
+            let typeId;
+            if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;
+            } else {
+                typeId = 1;
+            }
+            
+            const body = {
+                "pageNo": 1,
+                "pageSize": count,
+                "language": 0,
+                "typeId": typeId,
+                "random": "6DEB0766860C42151A193692ED16D65A",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
 
-            await this.bot.sendMessage(chatId, resultsText);
-        } catch (error) {
-            await this.bot.sendMessage(chatId, `Error getting results: ${error.message}`);
+            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const dataStr = JSON.stringify(response.data);
+                    const startIdx = dataStr.indexOf('[');
+                    const endIdx = dataStr.indexOf(']') + 1;
+                    
+                    if (startIdx !== -1 && endIdx !== -1) {
+                        const resultsJson = dataStr.substring(startIdx, endIdx);
+                        const results = JSON.parse(resultsJson);
+                        
+                        results.forEach(resultItem => {
+                            const number = String(resultItem.number || '');
+                            if (['0', '5'].includes(number)) {
+                                resultItem.colour = 'VIOLET';
+                            } else if (['1', '3', '7', '9'].includes(number)) {
+                                resultItem.colour = 'GREEN';
+                            } else if (['2', '4', '6', '8'].includes(number)) {
+                                resultItem.colour = 'RED';
+                            } else {
+                                resultItem.colour = 'UNKNOWN';
+                            }
+                        });
+                        
+                        return results;
+                    }
+                }
+            }
         }
+        return [];
+    } catch (error) {
+        console.error('Error getting recent results:', error.message);
+        return [];
     }
+}
+
+// Myanmar Time Function
+const getMyanmarTime = () => {
+    const now = new Date();
+    const myanmarOffset = 6.5 * 60 * 60 * 1000;
+    const myanmarTime = new Date(now.getTime() + myanmarOffset);
+    
+    const year = myanmarTime.getUTCFullYear();
+    const month = String(myanmarTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(myanmarTime.getUTCDate()).padStart(2, '0');
+    const hours = String(myanmarTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(myanmarTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(myanmarTime.getUTCSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
 
     async placeBetHandler(chatId, userId, betType) {
         const userSession = this.ensureUserSession(userId);
