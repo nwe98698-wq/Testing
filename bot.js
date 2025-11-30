@@ -393,13 +393,15 @@ class LotteryAPI {
                 "timestamp": Math.floor(Date.now() / 1000)
             };
         } 
-        // 777 platform အတွက် - amount ကို တိုက်ရိုက်အသုံးပြုမယ်
+        // 777 platform အတွက် - original calculation ကို ပြန်သုံးမယ်
         else {
+            // 777 platform calculation (original)
+            const baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
+            const betCount = Math.floor(amount / baseAmount);
+            const isColourBet = [10, 11, 12].includes(betType);
+            
             // TRX game အတွက် typeId သတ်မှတ်ခြင်း
             const typeId = this.gameType === 'TRX' ? 13 : 1;
-            
-            // Colour bet ဟုတ်မဟုတ် စစ်ဆေးခြင်း
-            const isColourBet = [10, 11, 12].includes(betType);
             
             // Game type သတ်မှတ်ခြင်း
             let gameType;
@@ -409,18 +411,19 @@ class LotteryAPI {
                 gameType = isColourBet ? 0 : 2; // Colour bet: 0, BIG/SMALL: 2
             }
 
-            // 777 platform အတွက် amount ကို တိုက်ရိုက်အသုံးပြုမယ်
             requestBody = {
                 "typeId": typeId,
                 "issuenumber": issueId,
                 "language": 0,
                 "gameType": gameType,
-                "amount": amount, // amount ကို တိုက်ရိုက်ထည့်မယ်
-                "betCount": 1,   // betCount ကို 1 အဖြစ်သတ်မှတ်မယ်
+                "amount": baseAmount, // base amount ကို သုံးမယ်
+                "betCount": betCount, // bet count ကို သုံးမယ်
                 "selectType": betType,
                 "random": this.randomKey(),
                 "timestamp": Math.floor(Date.now() / 1000)
             };
+
+            console.log(`💰 777 Platform Calculation - Amount: ${amount}, BaseAmount: ${baseAmount}, BetCount: ${betCount}, Total: ${baseAmount * betCount}`);
         }
 
         requestBody.signature = this.signMd5(requestBody);
@@ -469,11 +472,11 @@ class LotteryAPI {
                 const errorMsg = result.msg || result.message || result.error || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
                 
-                // Specific error handling
-                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient')) {
+                // Amount error ဖြစ်ရင် bet sequence ကို reset လုပ်မယ်
+                if (errorMsg.includes('amount') || errorMsg.includes('balance') || errorMsg.includes('insufficient') || errorMsg.includes('Betting amount error')) {
                     return { 
                         success: false, 
-                        message: `Amount error: ${errorMsg}`, 
+                        message: `Amount error: ${errorMsg}. Please check your bet amount.`, 
                         issueId, 
                         potentialProfit: 0 
                     };
@@ -482,7 +485,7 @@ class LotteryAPI {
                 if (errorMsg.includes('time') || errorMsg.includes('issue')) {
                     return { 
                         success: false, 
-                        message: `Timing error: ${errorMsg}`, 
+                        message: `Timing error: ${errorMsg}. Please try again.`, 
                         issueId, 
                         potentialProfit: 0 
                     };
