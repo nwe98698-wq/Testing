@@ -383,52 +383,20 @@ class LotteryAPI {
             validAmount = parseInt(validAmount);
         }
         
-        // WINGO_3MIN amount adjustment
+        // WINGO_3MIN amount validation - ONLY allow exact amounts
         if (this.gameType === 'WINGO_3MIN') {
             const allowedAmounts = [100, 500, 1000, 5000];
             
-            // Check if amount is exactly in allowed amounts
+            // Strict validation - only allow exact amounts
             if (!allowedAmounts.includes(validAmount)) {
-                // Find the closest allowed amount
-                const closestAmount = allowedAmounts.reduce((prev, curr) => {
-                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
-                });
-                
-                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO_3MIN`);
-                validAmount = closestAmount;
+                console.log(`❌ Invalid amount for WINGO_3MIN: ${validAmount}. Allowed: ${allowedAmounts.join(', ')}`);
+                return { 
+                    success: false, 
+                    message: `Invalid amount for WINGO 3MIN. Allowed amounts: ${allowedAmounts.join(', ')}`, 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
             }
-            
-            // Additional validation for WINGO_3MIN
-            if (validAmount < 100) validAmount = 100;
-            if (validAmount > 5000) validAmount = 5000;
-            
-        } else if (this.gameType === 'TRX') {
-            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
-            if (!allowedAmounts.includes(validAmount)) {
-                const closestAmount = allowedAmounts.reduce((prev, curr) => {
-                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
-                });
-                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for TRX`);
-                validAmount = closestAmount;
-            }
-        } else {
-            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
-            if (!allowedAmounts.includes(validAmount)) {
-                const closestAmount = allowedAmounts.reduce((prev, curr) => {
-                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
-                });
-                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO`);
-                validAmount = closestAmount;
-            }
-        }
-        
-        // Final validation
-        if (validAmount < 100) {
-            validAmount = 100;
-        }
-        
-        if (validAmount > 50000) {
-            validAmount = 50000;
         }
 
         const currentTime = Math.floor(Date.now() / 1000);
@@ -553,32 +521,6 @@ class LotteryAPI {
             } else {
                 const errorMsg = result.msg || result.message || 'Bet failed';
                 console.log('❌ Bet API Error:', errorMsg);
-                
-                // If amount error, try with different amounts for WINGO_3MIN
-                if (errorMsg.includes('amount') || errorMsg.includes('betting') || errorMsg.includes('error')) {
-                    if (this.gameType === 'WINGO_3MIN') {
-                        const allowedAmounts = [100, 500, 1000, 5000];
-                        const currentIndex = allowedAmounts.indexOf(validAmount);
-                        
-                        if (currentIndex !== -1 && currentIndex > 0) {
-                            // Try with lower amount
-                            const lowerAmount = allowedAmounts[currentIndex - 1];
-                            console.log(`🔄 Retrying with lower amount: ${lowerAmount} for WINGO_3MIN`);
-                            return await this.placeBet(lowerAmount, betType);
-                        } else if (currentIndex === -1) {
-                            // Try with default amount
-                            console.log(`🔄 Retrying with default amount: 100 for WINGO_3MIN`);
-                            return await this.placeBet(100, betType);
-                        }
-                    }
-                    
-                    return { 
-                        success: false, 
-                        message: `Bet amount error: ${validAmount}K is not allowed. Trying different amount...`, 
-                        issueId, 
-                        potentialProfit: 0 
-                    };
-                }
                 
                 return { 
                     success: false, 
