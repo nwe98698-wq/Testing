@@ -666,101 +666,130 @@ async getRecentResults(count = 10) {
     }
 }
     async getRecentResults(count = 10) {
-        try {
-            if (this.gameType === 'TRX') {
-                const body = {
-                    "typeId": 13,
-                    "language": 0,
-                    "random": "b05034ba4a2642009350ee863f29e2e9",
-                    "timestamp": Math.floor(Date.now() / 1000)
-                };
-                body.signature = this.signMd5(body);
+    try {
+        if (this.gameType === 'TRX') {
+            const body = {
+                "typeId": 13,
+                "language": 0,
+                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
 
-                const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
-                    headers: this.headers,
-                    timeout: 10000
-                });
+            const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
 
-                if (response.status === 200) {
-                    const result = response.data;
-                    if (result.msgCode === 0) {
-                        const settled = result.data?.settled;
-                        if (settled) {
-                            const number = String(settled.number || '');
-                            let colour = 'UNKNOWN';
-                            if (['0', '5'].includes(number)) {
-                                colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                colour = 'RED';
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const settledList = result.data?.settledList || [];
+                    
+                    // TRX game အတွက် settledList ထဲက data 10 ခုယူမယ်
+                    const results = settledList.slice(0, count).map(settled => {
+                        const number = String(settled.number || '');
+                        let colour = 'UNKNOWN';
+                        let resultType = 'UNKNOWN';
+                        
+                        // Determine number type (BIG/SMALL)
+                        if (['0','1','2','3','4'].includes(number)) {
+                            resultType = "SMALL";
+                        } else if (['5','6','7','8','9'].includes(number)) {
+                            resultType = "BIG";
+                        }
+                        
+                        // Determine colour
+                        if (['0','5'].includes(number)) {
+                            colour = 'VIOLET';
+                        } else if (['1','3','7','9'].includes(number)) {
+                            colour = 'GREEN';
+                        } else if (['2','4','6','8'].includes(number)) {
+                            colour = 'RED';
+                        }
+                        
+                        return {
+                            issueNumber: settled.issueNumber || 'N/A',
+                            number: number,
+                            resultType: resultType,
+                            colour: colour
+                        };
+                    });
+                    
+                    console.log(`📊 TRX Results retrieved: ${results.length} periods`);
+                    return results;
+                }
+            }
+        } else {
+            // WINGO and WINGO_3MIN games
+            let typeId;
+            if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;
+            } else {
+                typeId = 1;
+            }
+            
+            const body = {
+                "pageNo": 1,
+                "pageSize": count,
+                "language": 0,
+                "typeId": typeId,
+                "random": "6DEB0766860C42151A193692ED16D65A",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
+
+            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const dataStr = JSON.stringify(response.data);
+                    const startIdx = dataStr.indexOf('[');
+                    const endIdx = dataStr.indexOf(']') + 1;
+                    
+                    if (startIdx !== -1 && endIdx !== -1) {
+                        const resultsJson = dataStr.substring(startIdx, endIdx);
+                        const results = JSON.parse(resultsJson);
+                        
+                        results.forEach(resultItem => {
+                            const number = String(resultItem.number || '');
+                            let resultType = 'UNKNOWN';
+                            
+                            // Determine number type (BIG/SMALL)
+                            if (['0','1','2','3','4'].includes(number)) {
+                                resultType = "SMALL";
+                            } else if (['5','6','7','8','9'].includes(number)) {
+                                resultType = "BIG";
                             }
                             
-                            return [{
-                                issueNumber: settled.issueNumber,
-                                number: number,
-                                colour: colour
-                            }];
-                        }
-                    }
-                }
-            } else {
-                let typeId;
-                if (this.gameType === 'WINGO_3MIN') {
-                    typeId = 2;
-                } else {
-                    typeId = 1;
-                }
-                
-                const body = {
-                    "pageNo": 1,
-                    "pageSize": count,
-                    "language": 0,
-                    "typeId": typeId,
-                    "random": "6DEB0766860C42151A193692ED16D65A",
-                    "timestamp": Math.floor(Date.now() / 1000)
-                };
-                body.signature = this.signMd5(body);
-
-                const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                    headers: this.headers,
-                    timeout: 10000
-                });
-
-                if (response.status === 200) {
-                    const result = response.data;
-                    if (result.msgCode === 0) {
-                        const dataStr = JSON.stringify(response.data);
-                        const startIdx = dataStr.indexOf('[');
-                        const endIdx = dataStr.indexOf(']') + 1;
+                            // Determine colour
+                            if (['0','5'].includes(number)) {
+                                resultItem.colour = 'VIOLET';
+                            } else if (['1','3','7','9'].includes(number)) {
+                                resultItem.colour = 'GREEN';
+                            } else if (['2','4','6','8'].includes(number)) {
+                                resultItem.colour = 'RED';
+                            } else {
+                                resultItem.colour = 'UNKNOWN';
+                            }
+                            
+                            resultItem.resultType = resultType;
+                        });
                         
-                        if (startIdx !== -1 && endIdx !== -1) {
-                            const resultsJson = dataStr.substring(startIdx, endIdx);
-                            const results = JSON.parse(resultsJson);
-                            
-                            results.forEach(resultItem => {
-                                const number = String(resultItem.number || '');
-                                if (['0', '5'].includes(number)) {
-                                    resultItem.colour = 'VIOLET';
-                                } else if (['1', '3', '7', '9'].includes(number)) {
-                                    resultItem.colour = 'GREEN';
-                                } else if (['2', '4', '6', '8'].includes(number)) {
-                                    resultItem.colour = 'RED';
-                                } else {
-                                    resultItem.colour = 'UNKNOWN';
-                                }
-                            });
-                            
-                            return results;
-                        }
+                        console.log(`📊 ${this.gameType} Results retrieved: ${results.length} periods`);
+                        return results.slice(0, count);
                     }
                 }
             }
-            return [];
-        } catch (error) {
-            console.error('Error getting recent results:', error.message);
-            return [];
         }
+        return [];
+    } catch (error) {
+        console.error(`Error getting recent results for ${this.gameType}:`, error.message);
+        return [];
     }
 }
 
@@ -1543,41 +1572,57 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async handleResults(chatId, userId) {
-        const userSession = this.ensureUserSession(userId);
-        const platformName = '777 Big Win';
-        const gameType = userSession.gameType || 'WINGO';
+    const userSession = this.ensureUserSession(userId);
+    const platformName = '777 Big Win';
+    const gameType = userSession.gameType || 'WINGO';
 
-        try {
-            let results;
-            if (userSession.apiInstance) {
-                results = await userSession.apiInstance.getRecentResults(10);
-            } else {
-                const api = new LotteryAPI(userSession.platform || '777', gameType);
-                results = await api.getRecentResults(10);
-            }
+    try {
+        let results;
+        if (userSession.apiInstance) {
+            results = await userSession.apiInstance.getRecentResults(10);
+        } else {
+            const api = new LotteryAPI(userSession.platform || '777', gameType);
+            results = await api.getRecentResults(10);
+        }
 
-            if (!results || results.length === 0) {
-                await this.bot.sendMessage(chatId, "No recent results available.");
-                return;
-            }
+        if (!results || results.length === 0) {
+            await this.bot.sendMessage(chatId, "No recent results available.");
+            return;
+        }
 
-            let resultsText = `Recent Game Results - ${platformName} (${gameType})\n\n`;
+        let resultsText = `Recent Game Results - ${platformName} (${gameType})\n\n`;
+        
+        if (gameType === 'TRX') {
+            // TRX game အတွက် special format
             results.forEach((result, i) => {
                 const issueNo = result.issueNumber || 'N/A';
                 const number = result.number || 'N/A';
-                const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
+                const resultType = result.resultType || 'UNKNOWN';
                 const colour = result.colour || 'UNKNOWN';
 
                 resultsText += `${i+1}. ${issueNo} - ${number} - ${resultType} ${colour}\n`;
             });
+        } else {
+            // WINGO games အတွက် normal format
+            results.forEach((result, i) => {
+                const issueNo = result.issueNumber || 'N/A';
+                const number = result.number || 'N/A';
+                const resultType = result.resultType || 'UNKNOWN';
+                const colour = result.colour || 'UNKNOWN';
 
-            resultsText += `\nLast updated: ${getMyanmarTime()}`;
-
-            await this.bot.sendMessage(chatId, resultsText);
-        } catch (error) {
-            await this.bot.sendMessage(chatId, `Error getting results: ${error.message}`);
+                resultsText += `${i+1}. ${issueNo} - ${number} - ${resultType} ${colour}\n`;
+            });
         }
+
+        resultsText += `\nLast updated: ${getMyanmarTime()}`;
+        resultsText += `\n\nTotal periods: ${results.length}`;
+
+        await this.bot.sendMessage(chatId, resultsText);
+    } catch (error) {
+        console.error(`Error getting results for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, `Error getting results: ${error.message}`);
     }
+}
 
     async placeBetHandler(chatId, userId, betType) {
         const userSession = this.ensureUserSession(userId);
