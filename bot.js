@@ -3125,7 +3125,7 @@ Choose your betting mode:`;
         
         // Validate amounts for WINGO_3MIN
         if (gameType === 'WINGO_3MIN') {
-            const allowedAmounts = [100, 500, 1000, 5000];
+            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
             const invalidAmounts = amounts.filter(amount => !allowedAmounts.includes(amount));
             
             if (invalidAmounts.length > 0) {
