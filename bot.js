@@ -868,6 +868,7 @@ async updateColourPatternIndex(userId, newIndex) {
         return false;
     }
 }
+
 async getBsFormulaBetType(userId) {
     try {
         const patternsData = await this.getFormulaPatterns(userId);
@@ -2297,43 +2298,41 @@ async sendSequenceInfo(userId, chatId, betResult) {
         const amount = await this.getCurrentBetAmount(userId);
         console.log(`💰 Bet amount for user ${userId}: ${amount}`);
 
-    // ဒီနေရာကနေ ကျန်တဲ့ code တွေ ဆက်ရေးပါ...
-    const balance = await userSession.apiInstance.getBalance();
+        const balance = await userSession.apiInstance.getBalance();
 
-    if (amount > 0 && balance < amount) {
-        console.log(`💸 Insufficient balance for user ${userId}: ${balance} < ${amount}`);
-        this.bot.sendMessage(userId, `💸 *Insufficient Balance!*\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`, { parse_mode: 'Markdown' }).catch(console.error);
-        delete autoBettingTasks[userId];
-        waitingForResults[userId] = false;
-        return;
-    }
+        if (amount > 0 && balance < amount) {
+            console.log(`💸 Insufficient balance for user ${userId}: ${balance} < ${amount}`);
+            this.bot.sendMessage(userId, `💸 *Insufficient Balance!*\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`, { parse_mode: 'Markdown' }).catch(console.error);
+            delete autoBettingTasks[userId];
+            waitingForResults[userId] = false;
+            return;
+        }
 
-    // Check profit/loss targets
-    const botSession = await this.getBotSession(userId);
-    const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
-    const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
-    
-    const netProfit = botSession.session_profit - botSession.session_loss;
-    
-    if (profitTarget > 0 && netProfit >= profitTarget) {
-        console.log(`🎯 Profit target reached for user ${userId}: ${netProfit} >= ${profitTarget}`);
-        this.bot.sendMessage(userId, `🎯 *Profit Target Reached!*\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
-        delete autoBettingTasks[userId];
-        waitingForResults[userId] = false;
-        await this.saveBotSession(userId, false);
-        return;
-    }
-    
-    if (lossTarget > 0 && botSession.session_loss >= lossTarget) {
-        console.log(`🛑 Loss target reached for user ${userId}: ${botSession.session_loss} >= ${lossTarget}`);
-        this.bot.sendMessage(userId, `🛑 *Loss Target Reached!*\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
-        delete autoBettingTasks[userId];
-        waitingForResults[userId] = false;
-        await this.saveBotSession(userId, false);
-        return;
-    }
+        // Check profit/loss targets
+        const botSession = await this.getBotSession(userId);
+        const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
+        const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
+        
+        const netProfit = botSession.session_profit - botSession.session_loss;
+        
+        if (profitTarget > 0 && netProfit >= profitTarget) {
+            console.log(`🎯 Profit target reached for user ${userId}: ${netProfit} >= ${profitTarget}`);
+            this.bot.sendMessage(userId, `🎯 *Profit Target Reached!*\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
+            delete autoBettingTasks[userId];
+            waitingForResults[userId] = false;
+            await this.saveBotSession(userId, false);
+            return;
+        }
+        
+        if (lossTarget > 0 && botSession.session_loss >= lossTarget) {
+            console.log(`🛑 Loss target reached for user ${userId}: ${botSession.session_loss} >= ${lossTarget}`);
+            this.bot.sendMessage(userId, `🛑 *Loss Target Reached!*\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
+            delete autoBettingTasks[userId];
+            waitingForResults[userId] = false;
+            await this.saveBotSession(userId, false);
+            return;
+        }
 
-    try {
         // Send betting message
         const betMessage = `🎰 *Placing Auto Bet*\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Issue: ${issue}`;
         await this.bot.sendMessage(userId, betMessage, { parse_mode: 'Markdown' });
@@ -2361,7 +2360,7 @@ async sendSequenceInfo(userId, chatId, betResult) {
             // Reset waiting state on failure
             waitingForResults[userId] = false;
         }
-} catch (error) {
+    } catch (error) {
         console.error(`❌ Error in placeAutoBet for user ${userId}:`, error);
         waitingForResults[userId] = false;
     }
