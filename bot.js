@@ -1679,21 +1679,6 @@ async getRecentResults(count = 10) {
     }
 }
 
-// Myanmar Time Function
-const getMyanmarTime = () => {
-    const now = new Date();
-    const myanmarOffset = 6.5 * 60 * 60 * 1000;
-    const myanmarTime = new Date(now.getTime() + myanmarOffset);
-    
-    const year = myanmarTime.getUTCFullYear();
-    const month = String(myanmarTime.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(myanmarTime.getUTCDate()).padStart(2, '0');
-    const hours = String(myanmarTime.getUTCHours()).padStart(2, '0');
-    const minutes = String(myanmarTime.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(myanmarTime.getUTCSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
 
     async placeBetHandler(chatId, userId, betType) {
         const userSession = this.ensureUserSession(userId);
