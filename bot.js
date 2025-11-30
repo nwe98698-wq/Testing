@@ -2657,80 +2657,80 @@ async updateBsPatternIndex(userId, newIndex) {
         return 100; // Fallback to minimum amount
     }
 }
-    }
 
     async saveBotSession(userId, isRunning = false, totalBets = 0, totalProfit = 0, sessionProfit = 0, sessionLoss = 0) {
-        try {
-            await this.db.run(
-                'INSERT OR REPLACE INTO bot_sessions (user_id, is_running, total_bets, total_profit, session_profit, session_loss, last_activity) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-                [userId, isRunning ? 1 : 0, totalBets, totalProfit, sessionProfit, sessionLoss]
-            );
-            console.log(`Bot session saved for user ${userId}, running: ${isRunning}`);
-            return true;
-        } catch (error) {
-            console.error(`Error saving bot session for user ${userId}:`, error);
-            return false;
-        }
+    try {
+        await this.db.run(
+            'INSERT OR REPLACE INTO bot_sessions (user_id, is_running, total_bets, total_profit, session_profit, session_loss, last_activity) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+            [userId, isRunning ? 1 : 0, totalBets, totalProfit, sessionProfit, sessionLoss]
+        );
+        console.log(`Bot session saved for user ${userId}, running: ${isRunning}`);
+        return true;
+    } catch (error) {
+        console.error(`Error saving bot session for user ${userId}:`, error);
+        return false;
     }
+}
 
     async getBotSession(userId) {
-        try {
-            const result = await this.db.get(
-                'SELECT is_running, total_bets, total_profit, session_profit, session_loss FROM bot_sessions WHERE user_id = ?',
-                [userId]
-            );
-            
-            if (result) {
-                return {
-                    is_running: Boolean(result.is_running),
-                    total_bets: result.total_bets || 0,
-                    total_profit: result.total_profit || 0,
-                    session_profit: result.session_profit || 0,
-                    session_loss: result.session_loss || 0
-                };
-            }
-            
-            return { is_running: false, total_bets: 0, total_profit: 0, session_profit: 0, session_loss: 0 };
-        } catch (error) {
-            console.error(`Error getting bot session for user ${userId}:`, error);
-            return { is_running: false, total_bets: 0, total_profit: 0, session_profit: 0, session_loss: 0 };
+    try {
+        const result = await this.db.get(
+            'SELECT is_running, total_bets, total_profit, session_profit, session_loss FROM bot_sessions WHERE user_id = ?',
+            [userId]
+        );
+        
+        if (result) {
+            return {
+                is_running: Boolean(result.is_running),
+                total_bets: result.total_bets || 0,
+                total_profit: result.total_profit || 0,
+                session_profit: result.session_profit || 0,
+                session_loss: result.session_loss || 0
+            };
         }
+        
+        return { is_running: false, total_bets: 0, total_profit: 0, session_profit: 0, session_loss: 0 };
+    } catch (error) {
+        console.error(`Error getting bot session for user ${userId}:`, error);
+        return { is_running: false, total_bets: 0, total_profit: 0, session_profit: 0, session_loss: 0 };
     }
+}
 
     async resetSessionStats(userId) {
-        try {
-            await this.saveBotSession(userId, false, 0, 0, 0, 0);
-            return true;
-        } catch (error) {
-            console.error(`Error resetting session stats for user ${userId}:`, error);
-            return false;
-        }
+    try {
+        await this.saveBotSession(userId, false, 0, 0, 0, 0);
+        return true;
+    } catch (error) {
+        console.error(`Error resetting session stats for user ${userId}:`, error);
+        return false;
     }
+}
 
-    async getSlBetSession(userId) {
-        try {
-            const result = await this.db.get(
-                'SELECT is_wait_mode, wait_bet_type, wait_issue, wait_amount, wait_total_profit FROM sl_bet_sessions WHERE user_id = ?',
-                [userId]
-            );
-            
-            if (result) {
-                return {
-                    is_wait_mode: Boolean(result.is_wait_mode),
-                    wait_bet_type: result.wait_bet_type || '',
-                    wait_issue: result.wait_issue || '',
-                    wait_amount: result.wait_amount || 0,
-                    wait_total_profit: result.wait_total_profit || 0
-                };
-            }
-            
-            return { is_wait_mode: false, wait_bet_type: '', wait_issue: '', wait_amount: 0, wait_total_profit: 0 };
-        } catch (error) {
-            console.error(`Error getting SL bet session for user ${userId}:`, error);
-            return { is_wait_mode: false, wait_bet_type: '', wait_issue: '', wait_amount: 0, wait_total_profit: 0 };
+// getSlBetSession method
+async getSlBetSession(userId) {
+    try {
+        const result = await this.db.get(
+            'SELECT is_wait_mode, wait_bet_type, wait_issue, wait_amount, wait_total_profit FROM sl_bet_sessions WHERE user_id = ?',
+            [userId]
+        );
+        
+        if (result) {
+            return {
+                is_wait_mode: Boolean(result.is_wait_mode),
+                wait_bet_type: result.wait_bet_type || '',
+                wait_issue: result.wait_issue || '',
+                wait_amount: result.wait_amount || 0,
+                wait_total_profit: result.wait_total_profit || 0
+            };
         }
+        
+        return { is_wait_mode: false, wait_bet_type: '', wait_issue: '', wait_amount: 0, wait_total_profit: 0 };
+    } catch (error) {
+        console.error(`Error getting SL bet session for user ${userId}:`, error);
+        return { is_wait_mode: false, wait_bet_type: '', wait_issue: '', wait_amount: 0, wait_total_profit: 0 };
     }
-    }
+}
+} // <-- AutoLotteryBot class ကို ဒီနေရာမှာ ပိတ်ပါ
 
     // Placeholder functions for other features
     async setRandomBig(chatId, userId) {
