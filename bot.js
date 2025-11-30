@@ -369,72 +369,110 @@ class LotteryAPI {
     }
 
     async placeBet(amount, betType) {
-        try {
-            const issueId = await this.getCurrentIssue();
-            if (!issueId) {
-                return { success: false, message: "Failed to get current issue", issueId: "", potentialProfit: 0 };
-            }
+    try {
+        const issueId = await this.getCurrentIssue();
+        if (!issueId) {
+            return { success: false, message: "Failed to get current issue", issueId: "", potentialProfit: 0 };
+        }
 
-            console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}`);
+        console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}`);
 
-            let validAmount = amount;
+        let validAmount = amount;
+        
+        if (typeof validAmount !== 'number') {
+            validAmount = parseInt(validAmount);
+        }
+        
+        // WINGO_3MIN amount adjustment
+        if (this.gameType === 'WINGO_3MIN') {
+            const allowedAmounts = [100, 500, 1000, 5000];
             
-            if (typeof validAmount !== 'number') {
-                validAmount = parseInt(validAmount);
-            }
-            
-            if (this.gameType === 'WINGO_3MIN') {
-                const allowedAmounts = [100, 500, 1000, 5000];
-                if (!allowedAmounts.includes(validAmount)) {
-                    const closestAmount = allowedAmounts.reduce((prev, curr) => {
-                        return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
-                    });
-                    console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO_3MIN`);
-                    validAmount = closestAmount;
-                }
-            } else if (this.gameType === 'TRX') {
-                const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
-                if (!allowedAmounts.includes(validAmount)) {
-                    const closestAmount = allowedAmounts.reduce((prev, curr) => {
-                        return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
-                    });
-                    console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for TRX`);
-                    validAmount = closestAmount;
-                }
-            } else {
-                const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
-                if (!allowedAmounts.includes(validAmount)) {
-                    const closestAmount = allowedAmounts.reduce((prev, curr) => {
-                        return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
-                    });
-                    console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO`);
-                    validAmount = closestAmount;
-                }
-            }
-            
-            if (validAmount < 100) {
-                validAmount = 100;
-            }
-            
-            if (validAmount > 50000) {
-                validAmount = 50000;
-            }
-
-            const currentTime = Math.floor(Date.now() / 1000);
-            let requestBody;
-
-            if (this.gameType === 'TRX') {
-                if (betType === 10 || betType === 11 || betType === 12) {
-                    return { 
-                        success: false, 
-                        message: "TRX game does not support colour betting. Please use BIG or SMALL only.", 
-                        issueId: "", 
-                        potentialProfit: 0 
-                    };
-                }
+            // Check if amount is exactly in allowed amounts
+            if (!allowedAmounts.includes(validAmount)) {
+                // Find the closest allowed amount
+                const closestAmount = allowedAmounts.reduce((prev, curr) => {
+                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
+                });
                 
+                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO_3MIN`);
+                validAmount = closestAmount;
+            }
+            
+            // Additional validation for WINGO_3MIN
+            if (validAmount < 100) validAmount = 100;
+            if (validAmount > 5000) validAmount = 5000;
+            
+        } else if (this.gameType === 'TRX') {
+            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+            if (!allowedAmounts.includes(validAmount)) {
+                const closestAmount = allowedAmounts.reduce((prev, curr) => {
+                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
+                });
+                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for TRX`);
+                validAmount = closestAmount;
+            }
+        } else {
+            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+            if (!allowedAmounts.includes(validAmount)) {
+                const closestAmount = allowedAmounts.reduce((prev, curr) => {
+                    return (Math.abs(curr - validAmount) < Math.abs(prev - validAmount) ? curr : prev);
+                });
+                console.log(`🔄 Adjusting amount from ${validAmount} to ${closestAmount} for WINGO`);
+                validAmount = closestAmount;
+            }
+        }
+        
+        // Final validation
+        if (validAmount < 100) {
+            validAmount = 100;
+        }
+        
+        if (validAmount > 50000) {
+            validAmount = 50000;
+        }
+
+        const currentTime = Math.floor(Date.now() / 1000);
+        let requestBody;
+
+        if (this.gameType === 'TRX') {
+            if (betType === 10 || betType === 11 || betType === 12) {
+                return { 
+                    success: false, 
+                    message: "TRX game does not support colour betting. Please use BIG or SMALL only.", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            }
+            
+            requestBody = {
+                "typeId": 13,
+                "issuenumber": issueId,
+                "language": 0,
+                "gameType": 2,
+                "amount": validAmount,
+                "betCount": 1,
+                "selectType": betType,
+                "random": this.randomKey(),
+                "timestamp": currentTime
+            };
+        } else if (this.gameType === 'WINGO_3MIN') {
+            const isColourBet = [10, 11, 12].includes(betType);
+            
+            if (isColourBet) {
                 requestBody = {
-                    "typeId": 13,
+                    "typeId": 2,
+                    "issuenumber": issueId,
+                    "language": 0,
+                    "gameType": 0,
+                    "amount": validAmount,
+                    "betCount": 1,
+                    "selectType": betType,
+                    "random": this.randomKey(),
+                    "timestamp": currentTime
+                };
+            } else {
+                requestBody = {
+                    "typeId": 2,
                     "issuenumber": issueId,
                     "language": 0,
                     "gameType": 2,
@@ -444,143 +482,133 @@ class LotteryAPI {
                     "random": this.randomKey(),
                     "timestamp": currentTime
                 };
-            } else if (this.gameType === 'WINGO_3MIN') {
-                const isColourBet = [10, 11, 12].includes(betType);
-                
-                if (isColourBet) {
-                    requestBody = {
-                        "typeId": 2,
-                        "issuenumber": issueId,
-                        "language": 0,
-                        "gameType": 0,
-                        "amount": validAmount,
-                        "betCount": 1,
-                        "selectType": betType,
-                        "random": this.randomKey(),
-                        "timestamp": currentTime
-                    };
-                } else {
-                    requestBody = {
-                        "typeId": 2,
-                        "issuenumber": issueId,
-                        "language": 0,
-                        "gameType": 2,
-                        "amount": validAmount,
-                        "betCount": 1,
-                        "selectType": betType,
-                        "random": this.randomKey(),
-                        "timestamp": currentTime
-                    };
-                }
-            } else {
-                const isColourBet = [10, 11, 12].includes(betType);
-                
-                if (isColourBet) {
-                    requestBody = {
-                        "typeId": 1,
-                        "issuenumber": issueId,
-                        "language": 0,
-                        "gameType": 0,
-                        "amount": validAmount,
-                        "betCount": 1,
-                        "selectType": betType,
-                        "random": this.randomKey(),
-                        "timestamp": currentTime
-                    };
-                } else {
-                    requestBody = {
-                        "typeId": 1,
-                        "issuenumber": issueId,
-                        "language": 0,
-                        "gameType": 2,
-                        "amount": validAmount,
-                        "betCount": 1,
-                        "selectType": betType,
-                        "random": this.randomKey(),
-                        "timestamp": currentTime
-                    };
-                }
             }
-
-            requestBody.signature = this.signMd5(requestBody);
-
-            console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
-
-            let endpoint;
-            if (this.gameType === 'TRX') {
-                endpoint = 'GameTrxBetting';
+        } else {
+            const isColourBet = [10, 11, 12].includes(betType);
+            
+            if (isColourBet) {
+                requestBody = {
+                    "typeId": 1,
+                    "issuenumber": issueId,
+                    "language": 0,
+                    "gameType": 0,
+                    "amount": validAmount,
+                    "betCount": 1,
+                    "selectType": betType,
+                    "random": this.randomKey(),
+                    "timestamp": currentTime
+                };
             } else {
-                endpoint = 'GameBetting';
+                requestBody = {
+                    "typeId": 1,
+                    "issuenumber": issueId,
+                    "language": 0,
+                    "gameType": 2,
+                    "amount": validAmount,
+                    "betCount": 1,
+                    "selectType": betType,
+                    "random": this.randomKey(),
+                    "timestamp": currentTime
+                };
             }
+        }
 
-            const response = await axios.post(`${this.baseUrl}${endpoint}`, requestBody, {
-                headers: this.headers,
-                timeout: 15000
-            });
+        requestBody.signature = this.signMd5(requestBody);
 
-            console.log('📥 API Response:', JSON.stringify(response.data, null, 2));
+        console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
 
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.code === 0 || result.msgCode === 0) {
-                    let potentialProfit;
-                    if (betType === 10 || betType === 11) {
-                        potentialProfit = Math.floor(validAmount * 0.96);
-                    } else if (betType === 12) {
-                        potentialProfit = Math.floor(validAmount * 0.44);
-                    } else {
-                        potentialProfit = Math.floor(validAmount * 0.96);
-                    }
-                    
-                    return { 
-                        success: true, 
-                        message: "Bet placed successfully", 
-                        issueId, 
-                        potentialProfit, 
-                        actualAmount: validAmount 
-                    };
+        let endpoint;
+        if (this.gameType === 'TRX') {
+            endpoint = 'GameTrxBetting';
+        } else {
+            endpoint = 'GameBetting';
+        }
+
+        const response = await axios.post(`${this.baseUrl}${endpoint}`, requestBody, {
+            headers: this.headers,
+            timeout: 15000
+        });
+
+        console.log('📥 API Response:', JSON.stringify(response.data, null, 2));
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.code === 0 || result.msgCode === 0) {
+                let potentialProfit;
+                if (betType === 10 || betType === 11) {
+                    potentialProfit = Math.floor(validAmount * 0.96);
+                } else if (betType === 12) {
+                    potentialProfit = Math.floor(validAmount * 0.44);
                 } else {
-                    const errorMsg = result.msg || result.message || 'Bet failed';
-                    console.log('❌ Bet API Error:', errorMsg);
-                    
-                    if (errorMsg.includes('amount') || errorMsg.includes('betting') || errorMsg.includes('error')) {
-                        return { 
-                            success: false, 
-                            message: `Bet amount error: ${validAmount}K is not allowed. Trying different amount...`, 
-                            issueId, 
-                            potentialProfit: 0 
-                        };
+                    potentialProfit = Math.floor(validAmount * 0.96);
+                }
+                
+                return { 
+                    success: true, 
+                    message: "Bet placed successfully", 
+                    issueId, 
+                    potentialProfit, 
+                    actualAmount: validAmount 
+                };
+            } else {
+                const errorMsg = result.msg || result.message || 'Bet failed';
+                console.log('❌ Bet API Error:', errorMsg);
+                
+                // If amount error, try with different amounts for WINGO_3MIN
+                if (errorMsg.includes('amount') || errorMsg.includes('betting') || errorMsg.includes('error')) {
+                    if (this.gameType === 'WINGO_3MIN') {
+                        const allowedAmounts = [100, 500, 1000, 5000];
+                        const currentIndex = allowedAmounts.indexOf(validAmount);
+                        
+                        if (currentIndex !== -1 && currentIndex > 0) {
+                            // Try with lower amount
+                            const lowerAmount = allowedAmounts[currentIndex - 1];
+                            console.log(`🔄 Retrying with lower amount: ${lowerAmount} for WINGO_3MIN`);
+                            return await this.placeBet(lowerAmount, betType);
+                        } else if (currentIndex === -1) {
+                            // Try with default amount
+                            console.log(`🔄 Retrying with default amount: 100 for WINGO_3MIN`);
+                            return await this.placeBet(100, betType);
+                        }
                     }
                     
                     return { 
                         success: false, 
-                        message: errorMsg, 
+                        message: `Bet amount error: ${validAmount}K is not allowed. Trying different amount...`, 
                         issueId, 
                         potentialProfit: 0 
                     };
                 }
-            } else {
-                console.log('❌ HTTP Error:', response.status, response.statusText);
+                
                 return { 
                     success: false, 
-                    message: `API connection failed: ${response.status}`, 
+                    message: errorMsg, 
                     issueId, 
                     potentialProfit: 0 
                 };
             }
-        } catch (error) {
-            console.log('💥 Betting Error:', error.message);
-            if (error.response) {
-                console.log('❌ Error Response Data:', error.response.data);
-            }
+        } else {
+            console.log('❌ HTTP Error:', response.status, response.statusText);
             return { 
                 success: false, 
-                message: `Bet error: ${error.message}`, 
-                issueId: "", 
+                message: `API connection failed: ${response.status}`, 
+                issueId, 
                 potentialProfit: 0 
             };
         }
+    } catch (error) {
+        console.log('💥 Betting Error:', error.message);
+        if (error.response) {
+            console.log('❌ Error Response Data:', error.response.data);
+        }
+        return { 
+            success: false, 
+            message: `Bet error: ${error.message}`, 
+            issueId: "", 
+            potentialProfit: 0 
+        };
     }
+}
 
     async getRecentResults(count = 10) {
         try {
