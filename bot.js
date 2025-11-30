@@ -267,17 +267,77 @@ class LotteryAPI {
             return { success: false, message: `Login error: ${error.message}`, token: "" };
         }
     }
+    
+    async getUserInfo() {
+    try {
+        const body = {
+            "language": 0,
+            "random": "9078efc98754430e92e51da59eb2563c",
+            "timestamp": Math.floor(Date.now() / 1000)
+        };
+        body.signature = this.signMd5(body);
+
+        const response = await axios.post(`${this.baseUrl}GetUserInfo`, body, {
+            headers: this.headers,
+            timeout: 10000
+        });
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.msgCode === 0) {
+                return result.data || {};
+            }
+        }
+        return {};
+    } catch (error) {
+        console.error('Error getting user info:', error.message);
+        return {};
+    }
+}
+async getBalance() {
+    try {
+        const body = {
+            "language": 0,
+            "random": "9078efc98754430e92e51da59eb2563c",
+            "timestamp": Math.floor(Date.now() / 1000)
+        };
+        body.signature = this.signMd5(body);
+
+        const response = await axios.post(`${this.baseUrl}GetBalance`, body, {
+            headers: this.headers,
+            timeout: 10000
+        });
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.msgCode === 0) {
+                return result.data?.amount || 0;
+            }
+        }
+        return 0;
+    } catch (error) {
+        console.error('Error getting balance:', error.message);
+        return 0;
+    }
+}
+
+
+// AutoLotteryBot class ထဲမှာ ဒီ function ကိုထည့်ပါ
 
     async getCurrentIssue() {
     try {
         let typeId;
+        let endpoint;
+        
         if (this.gameType === 'TRX') {
             typeId = 13;
-        } else if (this.gameType === 'WINGO') {
-            // WINGO 3 MIN အတွက် typeId က 2 ဖြစ်တယ်
-            typeId = 2; // WINGO 3 MIN အတွက် 2 ကိုသုံးမယ်
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'WINGO_3MIN') {
+            typeId = 2;  // WINGO 3 MIN uses typeId 2
+            endpoint = 'GetGameIssue';
         } else {
-            typeId = 1; // default
+            typeId = 1;  // Normal WINGO uses typeId 1
+            endpoint = 'GetGameIssue';
         }
 
         const body = {
@@ -288,7 +348,6 @@ class LotteryAPI {
         };
         body.signature = this.signMd5(body);
 
-        const endpoint = this.gameType === 'TRX' ? 'GetTrxGameIssue' : 'GetGameIssue';
         const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
             headers: this.headers,
             timeout: 10000
@@ -300,145 +359,192 @@ class LotteryAPI {
                 if (this.gameType === 'TRX') {
                     return result.data?.predraw?.issueNumber || '';
                 } else {
-                    return result.data?.issueNumber || '';
+                    // For WINGO and WINGO 3 MIN
+                    return result.data?.issueNumber || result.data?.predraw?.issueNumber || '';
                 }
             }
         }
         return "";
     } catch (error) {
+        console.error('Error getting current issue:', error.message);
         return "";
     }
 }
 
-    async getBalance() {
-        try {
-            const body = {
-                "language": 0,
-                "random": "9078efc98754430e92e51da59eb2563c",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
-
-            const response = await axios.post(`${this.baseUrl}GetBalance`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    return result.data?.amount || 0;
-                }
-            }
-            return 0;
-        } catch (error) {
-            return 0;
+async placeBet(amount, betType) {
+    try {
+        const issueId = await this.getCurrentIssue();
+        if (!issueId) {
+            return { success: false, message: "Failed to get current issue", issueId: "", potentialProfit: 0 };
         }
-    }
 
-    async getUserInfo() {
-        try {
-            const body = {
-                "language": 0,
-                "random": "9078efc98754430e92e51da59eb2563c",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
+        console.log(`🎰 Placing bet - Issue: ${issueId}, Amount: ${amount}, BetType: ${betType}, GameType: ${this.gameType}`);
 
-            const response = await axios.post(`${this.baseUrl}GetUserInfo`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
+        const currentTime = Math.floor(Date.now() / 1000);
+        let requestBody;
 
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    return result.data || {};
-                }
+        // For TRX game - TRX မှာ Colour bet မရှိပါ
+        if (this.gameType === 'TRX') {
+            // TRX မှာ Colour bet မရှိဘူး၊ BIG/SMALL ပဲရှိတယ်
+            if (betType === 10 || betType === 11 || betType === 12) {
+                return { 
+                    success: false, 
+                    message: "TRX game does not support colour betting. Please use BIG or SMALL only.", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
             }
-            return {};
-        } catch (error) {
-            return {};
-        }
-    }
-
-    async placeBet(amount, betType) {
-        try {
-            const issueId = await this.getCurrentIssue();
-            if (!issueId) {
-                return { success: false, message: "Failed to get current issue", issueId: "", potentialProfit: 0 };
-            }
-
-            let requestBody;
             
-            if (this.platform === '6lottery') {
+            requestBody = {
+                "typeId": 13,
+                "issuenumber": issueId,
+                "language": 0,
+                "gameType": 2,  // TRX uses gameType 2
+                "amount": amount,
+                "betCount": 1,
+                "selectType": betType,
+                "random": this.randomKey(),
+                "timestamp": currentTime
+            };
+        } 
+        // For WINGO 3 MIN
+        else if (this.gameType === 'WINGO_3MIN') {
+            const isColourBet = [10, 11, 12].includes(betType);
+            
+            if (isColourBet) {
+                // Colour betting for WINGO 3 MIN
                 requestBody = {
-                    "typeId": 1,
+                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": 0,
+                    "gameType": 0,  // 0 for colour betting
                     "amount": amount,
                     "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
-                    "timestamp": Math.floor(Date.now() / 1000)
+                    "timestamp": currentTime
                 };
             } else {
-                const baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
-                const betCount = Math.floor(amount / baseAmount);
-                const isColourBet = [10, 11, 12].includes(betType);
-                
+                // BIG/SMALL betting for WINGO 3 MIN
                 requestBody = {
-                    "typeId": this.gameType === 'TRX' ? 13 : 1,
+                    "typeId": 2,  // WINGO 3 MIN uses typeId 2
                     "issuenumber": issueId,
                     "language": 0,
-                    "gameType": isColourBet ? 0 : (this.gameType === 'TRX' ? 2 : 2),
-                    "amount": baseAmount,
-                    "betCount": betCount,
+                    "gameType": 2,  // 2 for BIG/SMALL betting
+                    "amount": amount,
+                    "betCount": 1,
                     "selectType": betType,
                     "random": this.randomKey(),
-                    "timestamp": Math.floor(Date.now() / 1000)
+                    "timestamp": currentTime
                 };
             }
-
-            requestBody.signature = this.signMd5(requestBody);
-
-            console.log(`Betting details - Platform: ${this.platform}, Game: ${this.gameType}, Amount: ${amount}, Type: ${betType}`);
-
-            const endpoint = this.gameType === 'TRX' ? 'GameTrxBetting' : 'GameBetting';
-            const response = await axios.post(`${this.baseUrl}${endpoint}`, requestBody, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.code === 0 || result.msgCode === 0) {
-                    let potentialProfit;
-                    if (betType === 10) { // RED
-                        potentialProfit = Math.floor(amount * 0.96);
-                    } else if (betType === 11) { // GREEN
-                        potentialProfit = Math.floor(amount * 0.96);
-                    } else if (betType === 12) { // VIOLET
-                        potentialProfit = Math.floor(amount * 0.44);
-                    } else {
-                        potentialProfit = Math.floor(amount * 0.96);
-                    }
-                    
-                    return { success: true, message: "Bet placed successfully", issueId, potentialProfit, actualAmount: amount };
-                } else {
-                    const errorMsg = result.msg || 'Bet failed';
-                    return { success: false, message: errorMsg, issueId, potentialProfit: 0 };
-                }
-            }
-            return { success: false, message: `API connection failed: ${response.status}`, issueId, potentialProfit: 0 };
-        } catch (error) {
-            console.log('Betting Error:', error.message);
-            return { success: false, message: `Bet error: ${error.message}`, issueId: "", potentialProfit: 0 };
         }
-    }
+        // For normal WINGO
+        else {
+            const isColourBet = [10, 11, 12].includes(betType);
+            
+            if (isColourBet) {
+                // Colour betting for normal WINGO
+                requestBody = {
+                    "typeId": 1,  // WINGO uses typeId 1
+                    "issuenumber": issueId,
+                    "language": 0,
+                    "gameType": 0,  // 0 for colour betting
+                    "amount": amount,
+                    "betCount": 1,
+                    "selectType": betType,
+                    "random": this.randomKey(),
+                    "timestamp": currentTime
+                };
+            } else {
+                // BIG/SMALL betting for normal WINGO
+                requestBody = {
+                    "typeId": 1,  // WINGO uses typeId 1
+                    "issuenumber": issueId,
+                    "language": 0,
+                    "gameType": 2,  // 2 for BIG/SMALL betting
+                    "amount": amount,
+                    "betCount": 1,
+                    "selectType": betType,
+                    "random": this.randomKey(),
+                    "timestamp": currentTime
+                };
+            }
+        }
 
-    async getRecentResults(count = 10) {
+        // Generate signature
+        requestBody.signature = this.signMd5(requestBody);
+
+        console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
+
+        // Determine endpoint
+        let endpoint;
+        if (this.gameType === 'TRX') {
+            endpoint = 'GameTrxBetting';
+        } else {
+            endpoint = 'GameBetting';
+        }
+
+        const response = await axios.post(`${this.baseUrl}${endpoint}`, requestBody, {
+            headers: this.headers,
+            timeout: 15000
+        });
+
+        console.log('📥 API Response:', JSON.stringify(response.data, null, 2));
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.code === 0 || result.msgCode === 0) {
+                let potentialProfit;
+                if (betType === 10 || betType === 11) { // RED or GREEN
+                    potentialProfit = Math.floor(amount * 0.96);
+                } else if (betType === 12) { // VIOLET
+                    potentialProfit = Math.floor(amount * 0.44);
+                } else { // BIG or SMALL
+                    potentialProfit = Math.floor(amount * 0.96);
+                }
+                
+                return { 
+                    success: true, 
+                    message: "Bet placed successfully", 
+                    issueId, 
+                    potentialProfit, 
+                    actualAmount: amount 
+                };
+            } else {
+                const errorMsg = result.msg || result.message || 'Bet failed';
+                console.log('❌ Bet API Error:', errorMsg);
+                return { 
+                    success: false, 
+                    message: errorMsg, 
+                    issueId, 
+                    potentialProfit: 0 
+                };
+            }
+        } else {
+            console.log('❌ HTTP Error:', response.status, response.statusText);
+            return { 
+                success: false, 
+                message: `API connection failed: ${response.status}`, 
+                issueId, 
+                potentialProfit: 0 
+            };
+        }
+    } catch (error) {
+        console.log('💥 Betting Error:', error.message);
+        if (error.response) {
+            console.log('❌ Error Response Data:', error.response.data);
+        }
+        return { 
+            success: false, 
+            message: `Bet error: ${error.message}`, 
+            issueId: "", 
+            potentialProfit: 0 
+        };
+    }
+}
+
+async getRecentResults(count = 10) {
     try {
         if (this.gameType === 'TRX') {
             const body = {
@@ -478,8 +584,13 @@ class LotteryAPI {
                 }
             }
         } else {
-            // WINGO နဲ့ WINGO 3 MIN အတွက်
-            let typeId = this.gameType === 'WINGO' ? 2 : 1; // WINGO 3 MIN အတွက် typeId 2
+            // For WINGO and WINGO 3 MIN
+            let typeId;
+            if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2; // WINGO 3 MIN uses typeId 2
+            } else {
+                typeId = 1; // Normal WINGO uses typeId 1
+            }
             
             const body = {
                 "pageNo": 1,
@@ -527,11 +638,13 @@ class LotteryAPI {
         }
         return [];
     } catch (error) {
+        console.error('Error getting recent results:', error.message);
         return [];
     }
 }
-} // <-- ဒီ closing brace ကို ထည့်ပေးပါ
 
+} // <-- ဒီ closing brace က LotteryAPI class ကိုပိတ်တာ
+ 
 class AutoLotteryBot {
     constructor() {
         this.bot = new TelegramBot(BOT_TOKEN, { polling: true });
@@ -578,19 +691,39 @@ class AutoLotteryBot {
     }
 
     getMainKeyboard() {
-    return {
-        keyboard: [
-            [{ text: "Login" }],
-            [{ text: "Balance" }, { text: "Results" }],
-            [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
-            [{ text: "Bet RED" }, { text: "Bet GREEN" }, { text: "Bet VIOLET" }],
-            [{ text: "Bot Settings" }, { text: "My Bets" }],
-            [{ text: "SL Layer" }, { text: "Bot Info" }],
-            [{ text: "WINGO/TRX" }], 
-            [{ text: "Run Bot" }, { text: "Stop Bot" }]
-        ],
-        resize_keyboard: true
-    };
+    const userSession = this.ensureUserSession(this.currentUserId); // You'll need to track current user
+    
+    // TRX game ဖြစ်ရင် Colour buttons ကို ဖျောက်မယ်
+    if (userSession && userSession.gameType === 'TRX') {
+        return {
+            keyboard: [
+                [{ text: "Login" }],
+                [{ text: "Balance" }, { text: "Results" }],
+                [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
+                // Colour buttons removed for TRX
+                [{ text: "Bot Settings" }, { text: "My Bets" }],
+                [{ text: "SL Layer" }, { text: "Bot Info" }],
+                [{ text: "WINGO/TRX" }], 
+                [{ text: "Run Bot" }, { text: "Stop Bot" }]
+            ],
+            resize_keyboard: true
+        };
+    } else {
+        // Normal keyboard for WINGO and WINGO 3 MIN
+        return {
+            keyboard: [
+                [{ text: "Login" }],
+                [{ text: "Balance" }, { text: "Results" }],
+                [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
+                [{ text: "Bet RED" }, { text: "Bet GREEN" }, { text: "Bet VIOLET" }],
+                [{ text: "Bot Settings" }, { text: "My Bets" }],
+                [{ text: "SL Layer" }, { text: "Bot Info" }],
+                [{ text: "WINGO/TRX" }], 
+                [{ text: "Run Bot" }, { text: "Stop Bot" }]
+            ],
+            resize_keyboard: true
+        };
+    }
 }
 
     getBotSettingsKeyboard() {
@@ -659,6 +792,58 @@ class AutoLotteryBot {
             resize_keyboard: true
         };
     }
+    
+    // AutoLotteryBot class ထဲမှာ ဒီ function တွေကိုလည်း ထည့်ပါ
+async getBsFormulaBetType(userId) {
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const bsPattern = patternsData.bs_pattern;
+        let currentIndex = patternsData.bs_current_index;
+        
+        if (!bsPattern) {
+            // Fallback to random if no pattern
+            const betType = Math.random() < 0.5 ? 13 : 14;
+            return { 
+                betType, 
+                betTypeStr: betType === 13 ? "BIG (Random Fallback)" : "SMALL (Random Fallback)" 
+            };
+        }
+
+        const patternArray = bsPattern.split(',');
+        
+        if (currentIndex >= patternArray.length) {
+            currentIndex = 0; // Reset to start if at end
+        }
+
+        const currentBet = patternArray[currentIndex];
+        const betType = currentBet === 'B' ? 13 : 14;
+        const betTypeStr = `${currentBet === 'B' ? 'BIG' : 'SMALL'} (BS Formula ${currentIndex + 1}/${patternArray.length})`;
+
+        // Update index for next bet
+        const newIndex = currentIndex + 1;
+        await this.updateBsPatternIndex(userId, newIndex);
+
+        return { betType, betTypeStr };
+        
+    } catch (error) {
+        console.error(`Error getting BS formula bet type for user ${userId}:`, error);
+        const betType = Math.random() < 0.5 ? 13 : 14;
+        return { betType, betTypeStr: betType === 13 ? "BIG" : "SMALL" };
+    }
+}
+
+async updateBsPatternIndex(userId, newIndex) {
+    try {
+        await this.db.run(
+            'UPDATE formula_patterns SET bs_current_index = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [newIndex, userId]
+        );
+        return true;
+    } catch (error) {
+        console.error(`Error updating BS pattern index for user ${userId}:`, error);
+        return false;
+    }
+}
 
     async handleStart(msg) {
         const chatId = msg.chat.id;
@@ -965,9 +1150,10 @@ Press Run Bot to start auto betting!`;
                 break;
 
             // WINGO 3 MIN case ကို ဒီမှာထည့်ပေးပါ
-            case "WINGO 3 MIN":
-                await this.handleSetGameType(chatId, userId, text);
-                break;
+            // WINGO 3 MIN case ကို ဒီမှာထည့်ပေးပါ
+case "WINGO 3 MIN":
+    await this.handleSetGameType(chatId, userId, text);
+    break;
 
             case "WINGO":
             case "TRX":
@@ -989,12 +1175,21 @@ Press Run Bot to start auto betting!`;
     const userSession = this.ensureUserSession(userId);
     const currentGameType = userSession.gameType || 'WINGO';
     
-    const gameTypeText = `Current Game Type: ${currentGameType}
+    let gameTypeInfo = "";
+    if (currentGameType === 'TRX') {
+        gameTypeInfo = "\n\n⚠️ TRX Game: Supports BIG/SMALL only (No colour betting)";
+    } else if (currentGameType === 'WINGO_3MIN') {
+        gameTypeInfo = "\n\n✅ WINGO 3 MIN: Supports both BIG/SMALL and Colour betting";
+    } else {
+        gameTypeInfo = "\n\n✅ WINGO: Supports both BIG/SMALL and Colour betting";
+    }
+    
+    const gameTypeText = `🎮 Current Game Type: ${currentGameType}${gameTypeInfo}
 
 Select Game Type:
-- WINGO: Standard number game
-- TRX: TRX cryptocurrency game  
-- WINGO 3 MIN: WINGO 3 Minute game
+• WINGO: Standard number game (BIG/SMALL + Colours)
+• TRX: TRX cryptocurrency game (BIG/SMALL only)  
+• WINGO 3 MIN: WINGO 3 Minute game (BIG/SMALL + Colours)
 
 Choose your game type:`;
 
@@ -1008,14 +1203,12 @@ Choose your game type:`;
         const userSession = this.ensureUserSession(userId);
         let gameType = text.toUpperCase();
         
-        // WINGO 3 MIN ကို handle လုပ်ဖို့
+        // WINGO 3 MIN ကို သီးသန့် game type အဖြစ် သတ်မှတ်မယ်
         if (text === "WINGO 3 MIN") {
-            gameType = "WINGO"; // WINGO 3 MIN ကို WINGO အဖြစ် သတ်မှတ်မယ်
-            // ဒါမှမဟုတ် သီးသန့် game type အဖြစ် သတ်မှတ်ချင်ရင်
-            // gameType = "WINGO_3MIN"; 
+            gameType = "WINGO_3MIN";
         }
         
-        if (gameType === 'WINGO' || gameType === 'TRX') {
+        if (gameType === 'WINGO' || gameType === 'TRX' || gameType === 'WINGO_3MIN') {
             userSession.gameType = gameType;
             await this.saveUserSetting(userId, 'game_type', gameType);
             
@@ -1025,11 +1218,7 @@ Choose your game type:`;
             
             userSession.step = 'main';
             
-            let displayGameType = text; // မူရင်း text ကိုပြမယ် (WINGO 3 MIN)
-            if (gameType === 'WINGO' && text !== "WINGO 3 MIN") {
-                displayGameType = "WINGO";
-            }
-            
+            let displayGameType = text;
             await this.bot.sendMessage(chatId, `Game type set to: ${displayGameType}`, {
                 reply_markup: this.getMainKeyboard()
             });
@@ -1206,139 +1395,155 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async placeBetHandler(chatId, userId, betType) {
-        const userSession = this.ensureUserSession(userId);
-        
-        if (!userSession.loggedIn) {
-            await this.bot.sendMessage(chatId, "Please login first!");
+    const userSession = this.ensureUserSession(userId);
+    
+    if (!userSession.loggedIn) {
+        await this.bot.sendMessage(chatId, "Please login first!");
+        return;
+    }
+
+    try {
+        const currentIssue = await userSession.apiInstance.getCurrentIssue();
+        if (!currentIssue) {
+            await this.bot.sendMessage(chatId, "Cannot get current game issue. Please try again.");
             return;
         }
 
-        try {
-            const currentIssue = await userSession.apiInstance.getCurrentIssue();
-            if (!currentIssue) {
-                await this.bot.sendMessage(chatId, "Cannot get current game issue. Please try again.");
-                return;
-            }
-
-            if (await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue)) {
-                await this.bot.sendMessage(chatId, `Wait for next period\n\nYou have already placed a bet on issue ${currentIssue}.\nPlease wait for the next game period to place another bet.`);
-                return;
-            }
-
-            const amount = await this.getCurrentBetAmount(userId);
-            const betTypeStr = betType === 13 ? "BIG" : "SMALL";
-            const gameType = userSession.gameType || 'WINGO';
-
-            const balance = await userSession.apiInstance.getBalance();
-            if (balance < amount) {
-                await this.bot.sendMessage(chatId, `Insufficient balance! You have ${balance.toLocaleString()} K but need ${amount.toLocaleString()} K`);
-                return;
-            }
-
-            const platformName = '777 Big Win';
-
-            const loadingMsg = await this.bot.sendMessage(chatId, `🎰 *Placing ${betTypeStr} Bet*\n\n• Game: ${gameType}\n• Issue: ${currentIssue}\n• Amount: ${amount.toLocaleString()} K`, { parse_mode: 'Markdown' });
-
-            const result = await userSession.apiInstance.placeBet(amount, betType);
-            
-            if (result.success) {
-                await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
-                
-                if (!issueCheckers[userId]) {
-                    this.startIssueChecker(userId);
-                }
-
-                const betText = `✅ *Bet Placed Successfully!*\n\n• Game: ${gameType}\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K`;
-
-                await this.bot.editMessageText(betText, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id,
-                    parse_mode: 'Markdown'
-                });
-            } else {
-                await this.bot.editMessageText(`❌ *Bet Failed*\n\nError: ${result.message}`, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id,
-                    parse_mode: 'Markdown'
-                });
-            }
-        } catch (error) {
-            await this.bot.sendMessage(chatId, `❌ *Bet Error*\n\nError: ${error.message}`, { parse_mode: 'Markdown' });
+        if (await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue)) {
+            await this.bot.sendMessage(chatId, `Wait for next period\n\nYou have already placed a bet on issue ${currentIssue}.\nPlease wait for the next game period to place another bet.`);
+            return;
         }
+
+        const amount = await this.getCurrentBetAmount(userId);
+        const betTypeStr = betType === 13 ? "BIG" : "SMALL";
+        const gameType = userSession.gameType || 'WINGO';
+
+        const balance = await userSession.apiInstance.getBalance();
+        if (balance < amount) {
+            await this.bot.sendMessage(chatId, `Insufficient balance! You have ${balance.toLocaleString()} K but need ${amount.toLocaleString()} K`);
+            return;
+        }
+
+        const platformName = '777 Big Win';
+
+        // Remove Markdown to avoid parsing errors
+        const loadingMsg = await this.bot.sendMessage(chatId, `Placing ${betTypeStr} Bet\n\nGame: ${gameType}\nIssue: ${currentIssue}\nAmount: ${amount.toLocaleString()} K`);
+
+        const result = await userSession.apiInstance.placeBet(amount, betType);
+        
+        if (result.success) {
+            await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
+            
+            if (!issueCheckers[userId]) {
+                this.startIssueChecker(userId);
+            }
+
+            const betText = `Bet Placed Successfully!\n\nGame: ${gameType}\nIssue: ${result.issueId}\nType: ${betTypeStr}\nAmount: ${amount.toLocaleString()} K`;
+
+            await this.bot.editMessageText(betText, {
+                chat_id: chatId,
+                message_id: loadingMsg.message_id
+            });
+        } else {
+            await this.bot.editMessageText(`Bet Failed\n\nError: ${result.message}`, {
+                chat_id: chatId,
+                message_id: loadingMsg.message_id
+            });
+        }
+    } catch (error) {
+        await this.bot.sendMessage(chatId, `Bet Error\n\nError: ${error.message}`);
     }
+}
 
     async placeColourBet(chatId, userId, colour) {
-        const userSession = this.ensureUserSession(userId);
-        
-        if (!userSession.loggedIn) {
-            await this.bot.sendMessage(chatId, "Please login first!");
+    const userSession = this.ensureUserSession(userId);
+    
+    if (!userSession.loggedIn) {
+        await this.bot.sendMessage(chatId, "🔐 Please login first!");
+        return;
+    }
+
+    try {
+        // TRX game မှာ Colour bet မရှိကြောင်း စစ်ဆေးခြင်း
+        if (userSession.gameType === 'TRX') {
+            await this.bot.sendMessage(chatId, `❌ *TRX Game Notice*\n\nTRX game does not support colour betting.\n\nPlease use:\n• Bet BIG\n• Bet SMALL\n\nOr switch to WINGO/WINGO 3 MIN for colour betting.`, {
+                parse_mode: 'Markdown'
+            });
             return;
         }
 
-        try {
-            const currentIssue = await userSession.apiInstance.getCurrentIssue();
-            if (!currentIssue) {
-                await this.bot.sendMessage(chatId, "Cannot get current game issue. Please try again.");
-                return;
-            }
-
-            if (await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue)) {
-                await this.bot.sendMessage(chatId, `Wait for next period\n\nYou have already placed a bet on issue ${currentIssue}.\nPlease wait for the next game period to place another bet.`);
-                return;
-            }
-
-            const amount = await this.getCurrentBetAmount(userId);
-            const betType = COLOUR_BET_TYPES[colour];
-            const gameType = userSession.gameType || 'WINGO';
-
-            const balance = await userSession.apiInstance.getBalance();
-            if (balance < amount) {
-                await this.bot.sendMessage(chatId, `Insufficient balance! You have ${balance.toLocaleString()} K but need ${amount.toLocaleString()} K`);
-                return;
-            }
-
-            let potentialProfit;
-            let payoutRate;
-            if (colour === "RED" || colour === "GREEN") {
-                potentialProfit = Math.floor(amount * 0.96);
-                payoutRate = "1.96x";
-            } else if (colour === "VIOLET") {
-                potentialProfit = Math.floor(amount * 0.44);
-                payoutRate = "1.44x";
-            }
-
-            const platformName = '777 Big Win';
-
-            const loadingMsg = await this.bot.sendMessage(chatId, `🎰 *Placing ${colour} Bet*\n\n• Game: ${gameType}\n• Issue: ${currentIssue}\n• Amount: ${amount.toLocaleString()} K\n• Payout: ${payoutRate}\n• Potential Profit: +${potentialProfit.toLocaleString()} K`, { parse_mode: 'Markdown' });
-
-            const result = await userSession.apiInstance.placeBet(amount, betType);
-            
-            if (result.success) {
-                const betTypeStr = `${colour}`;
-                await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
-                
-                if (!issueCheckers[userId]) {
-                    this.startIssueChecker(userId);
-                }
-
-                const betText = `✅ *Colour Bet Placed Successfully!*\n\n• Game: ${gameType}\n• Issue: ${result.issueId}\n• Type: ${colour}\n• Amount: ${amount.toLocaleString()} K\n• Potential Profit: +${potentialProfit.toLocaleString()} K`;
-
-                await this.bot.editMessageText(betText, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id,
-                    parse_mode: 'Markdown'
-                });
-            } else {
-                await this.bot.editMessageText(`❌ *${colour} Bet Failed*\n\nError: ${result.message}`, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id,
-                    parse_mode: 'Markdown'
-                });
-            }
-        } catch (error) {
-            await this.bot.sendMessage(chatId, `❌ *${colour} Bet Error*\n\nError: ${error.message}`, { parse_mode: 'Markdown' });
+        const currentIssue = await userSession.apiInstance.getCurrentIssue();
+        if (!currentIssue) {
+            await this.bot.sendMessage(chatId, "❌ Cannot get current game issue. Please try again.", {
+                parse_mode: 'Markdown'
+            });
+            return;
         }
+
+        if (await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue)) {
+            await this.bot.sendMessage(chatId, `⏳ *Wait for next period*\n\nYou have already placed a bet on issue ${currentIssue}.\nPlease wait for the next game period to place another bet.`, {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        const amount = await this.getCurrentBetAmount(userId);
+        const betType = COLOUR_BET_TYPES[colour];
+        const gameType = userSession.gameType || 'WINGO';
+
+        const balance = await userSession.apiInstance.getBalance();
+        if (balance < amount) {
+            await this.bot.sendMessage(chatId, `💸 *Insufficient balance!*\n\nYou have: ${balance.toLocaleString()} K\nNeed: ${amount.toLocaleString()} K`, {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        let potentialProfit;
+        let payoutRate;
+        if (colour === "RED" || colour === "GREEN") {
+            potentialProfit = Math.floor(amount * 0.96);
+            payoutRate = "1.96x";
+        } else if (colour === "VIOLET") {
+            potentialProfit = Math.floor(amount * 0.44);
+            payoutRate = "1.44x";
+        }
+
+        const platformName = '777 Big Win';
+
+        // Simple message without Markdown to avoid parsing errors
+        const loadingMsg = await this.bot.sendMessage(chatId, `🎰 Placing ${colour} Bet\n\n• Game: ${gameType}\n• Issue: ${currentIssue}\n• Amount: ${amount.toLocaleString()} K\n• Payout: ${payoutRate}\n• Potential Profit: +${potentialProfit.toLocaleString()} K`);
+
+        const result = await userSession.apiInstance.placeBet(amount, betType);
+        
+        if (result.success) {
+            const betTypeStr = `${colour}`;
+            await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
+            
+            if (!issueCheckers[userId]) {
+                this.startIssueChecker(userId);
+            }
+
+            // Simple success message without Markdown
+            const betText = `✅ Colour Bet Placed Successfully!\n\n• Game: ${gameType}\n• Issue: ${result.issueId}\n• Type: ${colour}\n• Amount: ${amount.toLocaleString()} K\n• Potential Profit: +${potentialProfit.toLocaleString()} K`;
+
+            await this.bot.editMessageText(betText, {
+                chat_id: chatId,
+                message_id: loadingMsg.message_id
+            });
+        } else {
+            // Simple error message without Markdown
+            await this.bot.editMessageText(`❌ ${colour} Bet Failed\n\nError: ${result.message}`, {
+                chat_id: chatId,
+                message_id: loadingMsg.message_id
+            });
+        }
+    } catch (error) {
+        console.error(`💥 Colour bet error for user ${userId}:`, error);
+        // Simple error message without Markdown
+        await this.bot.sendMessage(chatId, `❌ ${colour} Bet Error\n\nError: ${error.message}`);
     }
+}
 
     async stopBot(chatId, userId) {
         try {
@@ -1401,92 +1606,123 @@ Last update: ${getMyanmarTime()}`;
     }
 
     // Win/Loss Message Functions
-    startIssueChecker(userId) {
-        if (issueCheckers[userId]) return;
+    // Issue checker function ကို ပြင်ဆင်ခြင်း
+startIssueChecker(userId) {
+    if (issueCheckers[userId]) return;
 
-        issueCheckers[userId] = true;
-        console.log(`Started issue checker for user ${userId}`);
+    issueCheckers[userId] = true;
+    console.log(`Started issue checker for user ${userId}`);
+
+    const userSession = userSessions[userId];
+    if (!userSession || !userSession.apiInstance) return;
+
+    let lastCheckedIssue = '';
+
+    const checkLoop = async () => {
+        if (!issueCheckers[userId]) return;
+
+        try {
+            const currentIssue = await userSession.apiInstance.getCurrentIssue();
+            
+            if (currentIssue && currentIssue !== lastCheckedIssue) {
+                console.log(`Issue changed from ${lastCheckedIssue} to ${currentIssue}, checking results for user ${userId}`);
+                
+                // Check pending bets for the previous issue
+                if (lastCheckedIssue) {
+                    await this.checkSingleBetResult(userId, lastCheckedIssue);
+                }
+                lastCheckedIssue = currentIssue;
+            }
+
+            setTimeout(checkLoop, 3000); // 3 seconds interval
+        } catch (error) {
+            console.error(`Issue checker error for user ${userId}:`, error);
+            setTimeout(checkLoop, 10000); // Retry after 10 seconds on error
+        }
+    };
+
+    // Get initial issue
+    userSession.apiInstance.getCurrentIssue().then(issue => {
+        if (issue) {
+            lastCheckedIssue = issue;
+            console.log(`Initial issue set to: ${issue} for user ${userId}`);
+        }
+        checkLoop();
+    }).catch(error => {
+        console.error(`Error getting initial issue for user ${userId}:`, error);
+        setTimeout(checkLoop, 10000);
+    });
+}
+
+// Check single bet result function ကို ပြင်ဆင်ခြင်း
+// Check single bet result function ကို ပြင်ဆင်ခြင်း
+async checkSingleBetResult(userId, issue) {
+    try {
+        console.log(`🔍 Checking bet result for user ${userId}, issue: ${issue}`);
 
         const userSession = userSessions[userId];
-        if (!userSession || !userSession.apiInstance) return;
+        if (!userSession || !userSession.apiInstance) {
+            console.log(`❌ No user session or API instance for user ${userId}`);
+            return;
+        }
 
-        let lastCheckedIssue = '';
+        const platform = userSession.platform || '777';
+        const gameType = userSession.gameType || 'WINGO';
+        
+        // Get pending bet for this issue
+        const pendingBet = await this.db.get(
+            'SELECT platform, issue, bet_type, amount FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
+            [userId, platform, issue]
+        );
 
-        const checkLoop = async () => {
-            if (!issueCheckers[userId]) return;
+        if (!pendingBet) {
+            console.log(`❌ No pending bet found for user ${userId}, issue ${issue}`);
+            return;
+        }
 
-            try {
-                const currentIssue = await userSession.apiInstance.getCurrentIssue();
-                
-                if (currentIssue && currentIssue !== lastCheckedIssue) {
-                    console.log(`Issue changed from ${lastCheckedIssue} to ${currentIssue}, checking results for user ${userId}`);
-                    
-                    // Check pending bets for the previous issue
-                    if (lastCheckedIssue) {
-                        await this.checkSingleBetResult(userId, lastCheckedIssue);
-                    }
-                    lastCheckedIssue = currentIssue;
-                }
+        console.log(`📝 Found pending bet: ${JSON.stringify(pendingBet)}`);
 
-                setTimeout(checkLoop, 5000);
-            } catch (error) {
-                console.error(`Issue checker error for user ${userId}:`, error);
-                delete issueCheckers[userId];
-            }
-        };
+        const betTypeStr = pendingBet.bet_type;
+        const amount = pendingBet.amount;
 
-        // Get initial issue
-        userSession.apiInstance.getCurrentIssue().then(issue => {
-            lastCheckedIssue = issue;
-            checkLoop();
-        });
-    }
-
-    async checkSingleBetResult(userId, issue) {
-        try {
-            console.log(`Checking bet result for user ${userId}, issue: ${issue}`);
-
-            const userSession = userSessions[userId];
-            if (!userSession || !userSession.apiInstance) return;
-
-            const platform = userSession.platform || '777';
-            
-            // Get pending bet for this issue
-            const pendingBet = await this.db.get(
-                'SELECT platform, issue, bet_type, amount FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
+        // Skip processing for wait mode bets with 0 amount
+        if (amount === 0 && betTypeStr.includes("WAIT")) {
+            console.log(`⏭️ Skipping wait mode bet for user ${userId}, issue ${issue}`);
+            await this.db.run(
+                'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
                 [userId, platform, issue]
             );
+            return;
+        }
 
-            if (!pendingBet) {
-                console.log(`No pending bet found for user ${userId}, issue ${issue}`);
-                return;
-            }
+        // Get recent results
+        const results = await userSession.apiInstance.getRecentResults(20);
+        console.log(`📊 Retrieved ${results.length} recent results for user ${userId}`);
 
-            const betTypeStr = pendingBet.bet_type;
-            const amount = pendingBet.amount;
+        if (results.length === 0) {
+            console.log(`❌ No results found for user ${userId}`);
+            return;
+        }
 
-            // Skip processing for wait mode bets with 0 amount
-            if (amount === 0 && betTypeStr.includes("WAIT")) {
-                console.log(`Skipping wait mode bet for user ${userId}, issue ${issue}`);
-                await this.db.run(
-                    'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
-                    [userId, platform, issue]
-                );
-                return;
-            }
+        let betResult = "UNKNOWN";
+        let profitLoss = 0;
+        let resultNumber = "";
+        let resultType = "";
+        let resultColour = "";
 
-            const results = await userSession.apiInstance.getRecentResults(10);
-            let betResult = "UNKNOWN";
-            let profitLoss = 0;
-            let resultNumber = "";
-            let resultType = "";
-            let resultColour = "";
-
-            for (const result of results) {
-                if (result.issueNumber === issue) {
-                    resultNumber = result.number || 'N/A';
-                    
-                    // Determine result type and colour
+        // Find the specific issue in results
+        let resultFound = false;
+        for (const result of results) {
+            console.log(`🔍 Checking result: ${result.issueNumber} vs ${issue}`);
+            
+            if (result.issueNumber === issue) {
+                resultFound = true;
+                resultNumber = result.number || 'N/A';
+                console.log(`✅ Found matching result for issue ${issue}: number ${resultNumber}`);
+                
+                // Determine result type and colour based on game type
+                if (gameType === 'TRX') {
+                    // TRX game result logic
                     if (['0','1','2','3','4'].includes(resultNumber)) {
                         resultType = "SMALL";
                     } else {
@@ -1502,194 +1738,273 @@ Last update: ${getMyanmarTime()}`;
                     } else {
                         resultColour = "UNKNOWN";
                     }
-
-                    // Check bet result
-                    if (betTypeStr.includes("BIG")) {
-                        if (resultType === "BIG") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                        }
-                    } else if (betTypeStr.includes("SMALL")) {
-                        if (resultType === "SMALL") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                        }
-                    } else if (betTypeStr.includes("RED")) {
-                        if (resultColour === "RED") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                        }
-                    } else if (betTypeStr.includes("GREEN")) {
-                        if (resultColour === "GREEN") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                        }
-                    } else if (betTypeStr.includes("VIOLET")) {
-                        if (resultColour === "VIOLET") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.44);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                        }
+                } else if (gameType === 'WINGO_3MIN' || gameType === 'WINGO') {
+                    // WINGO 3 MIN and normal WINGO game result logic
+                    if (['0','1','2','3','4'].includes(resultNumber)) {
+                        resultType = "SMALL";
+                    } else {
+                        resultType = "BIG";
                     }
-                    break;
-                }
-            }
 
-            if (betResult === "UNKNOWN") {
-                console.log(`Result not found for issue ${issue}`);
-                return;
-            }
-
-            // Save to bet history
-            await this.db.run(
-                'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
-            );
-
-            // Remove from pending bets
-            await this.db.run(
-                'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
-                [userId, platform, issue]
-            );
-
-            // Update bot stats
-            await this.updateBotStats(userId, profitLoss);
-
-            // Send win/loss message
-            await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour);
-
-            console.log(`Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
-            
-        } catch (error) {
-            console.error(`Error checking single bet result for user ${userId}, issue ${issue}:`, error);
-        }
-    }
-
-    async sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour) {
-        try {
-            const userSession = userSessions[userId];
-            if (!userSession) return;
-
-            const chatId = userId;
-            const gameType = userSession.gameType || 'WINGO';
-
-            let message = "";
-            let emoji = "";
-
-            if (betResult === "WIN") {
-                emoji = "🎉";
-                message = `${emoji} *WIN!* ${emoji}\n\n`;
-                message += `✅ *Your Bet:* ${betTypeStr}\n`;
-                message += `💰 *Amount:* ${amount.toLocaleString()} K\n`;
-                message += `💵 *Profit:* +${profitLoss.toLocaleString()} K\n\n`;
-            } else {
-                emoji = "😢";
-                message = `${emoji} *LOSE* ${emoji}\n\n`;
-                message += `❌ *Your Bet:* ${betTypeStr}\n`;
-                message += `💸 *Amount:* ${amount.toLocaleString()} K\n`;
-                message += `📉 *Loss:* -${amount.toLocaleString()} K\n\n`;
-            }
-
-            message += `🎯 *Result Details:*\n`;
-            message += `• Issue: ${issue}\n`;
-            message += `• Number: ${resultNumber}\n`;
-            message += `• Type: ${resultType}\n`;
-            message += `• Colour: ${resultColour}\n`;
-            message += `• Game: ${gameType}\n\n`;
-
-            // Add current balance
-            if (userSession.loggedIn && userSession.apiInstance) {
-                try {
-                    const currentBalance = await userSession.apiInstance.getBalance();
-                    message += `💳 *Current Balance:* ${currentBalance.toLocaleString()} K\n\n`;
-                } catch (balanceError) {
-                    console.error(`Error getting balance for result message:`, balanceError);
-                }
-            }
-
-            message += `⏰ ${getMyanmarTime()}`;
-
-            await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-
-            // Send additional sequence info for non-wait mode bets
-            if (amount > 0) {
-                await this.sendSequenceInfo(userId, chatId, betResult);
-            }
-
-        } catch (error) {
-            console.error(`Error sending result message to user ${userId}:`, error);
-        }
-    }
-
-    async sendSequenceInfo(userId, chatId, betResult) {
-        try {
-            const userSession = userSessions[userId];
-            if (!userSession) return;
-
-            const slSession = await this.getSlBetSession(userId);
-            
-            // Only update sequence for non-wait mode
-            if (!slSession.is_wait_mode) {
-                const newIndex = await this.updateBetSequence(userId, betResult);
-                const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
-                const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
-                const nextAmount = amounts[newIndex] || amounts[0];
-
-                let sequenceMessage = "";
-                if (betResult === "WIN") {
-                    sequenceMessage = `🔄 *Sequence Reset to Step 1*\n`;
-                } else {
-                    sequenceMessage = `📈 *Next Bet: Step ${newIndex + 1}* (${nextAmount.toLocaleString()} K)\n`;
+                    if (['0','5'].includes(resultNumber)) {
+                        resultColour = "VIOLET";
+                    } else if (['1','3','7','9'].includes(resultNumber)) {
+                        resultColour = "GREEN";
+                    } else if (['2','4','6','8'].includes(resultNumber)) {
+                        resultColour = "RED";
+                    } else {
+                        resultColour = "UNKNOWN";
+                    }
                 }
 
-                sequenceMessage += `🎯 *Bet Sequence:* ${betSequence}`;
+                console.log(`🎯 Result analysis - Type: ${resultType}, Colour: ${resultColour}`);
 
-                await this.bot.sendMessage(chatId, sequenceMessage, { parse_mode: 'Markdown' });
+                // Check bet result
+                if (betTypeStr.includes("BIG")) {
+                    if (resultType === "BIG") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ BIG bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ BIG bet LOST`);
+                    }
+                } else if (betTypeStr.includes("SMALL")) {
+                    if (resultType === "SMALL") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ SMALL bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ SMALL bet LOST`);
+                    }
+                } else if (betTypeStr.includes("RED")) {
+                    if (resultColour === "RED") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ RED bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ RED bet LOST`);
+                    }
+                } else if (betTypeStr.includes("GREEN")) {
+                    if (resultColour === "GREEN") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ GREEN bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ GREEN bet LOST`);
+                    }
+                } else if (betTypeStr.includes("VIOLET")) {
+                    if (resultColour === "VIOLET") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.44);
+                        console.log(`✅ VIOLET bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ VIOLET bet LOST`);
+                    }
+                }
+                break;
             }
+        }
 
-        } catch (error) {
-            console.error(`Error sending sequence info to user ${userId}:`, error);
+        if (!resultFound) {
+            console.log(`❌ Result not found for issue ${issue} in recent results`);
+            return;
+        }
+
+        if (betResult === "UNKNOWN") {
+            console.log(`❓ Unknown bet result for issue ${issue}`);
+            return;
+        }
+
+        // Save to bet history
+        await this.db.run(
+            'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
+        );
+        console.log(`💾 Bet history saved for user ${userId}`);
+
+        // Remove from pending bets
+        await this.db.run(
+            'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
+            [userId, platform, issue]
+        );
+        console.log(`🗑️ Pending bet removed for user ${userId}`);
+
+        // Update bot stats
+        await this.updateBotStats(userId, profitLoss);
+        console.log(`📈 Bot stats updated for user ${userId}`);
+
+        // Reset waiting state to allow next bet
+        waitingForResults[userId] = false;
+        console.log(`🔄 Reset waitingForResults for user ${userId}`);
+
+        // Send win/loss message
+        console.log(`📤 Sending result message to user ${userId}`);
+        await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour);
+
+        console.log(`✅ Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
+        
+    } catch (error) {
+        console.error(`💥 Error checking single bet result for user ${userId}, issue ${issue}:`, error);
+        // Reset waiting state on error too
+        waitingForResults[userId] = false;
+    }
+}
+
+// Send result message function ကို ပြင်ဆင်ခြင်း
+async sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour) {
+    try {
+        const userSession = userSessions[userId];
+        if (!userSession) {
+            console.log(`❌ No user session for sending message to ${userId}`);
+            return;
+        }
+
+        const chatId = userId;
+        const gameType = userSession.gameType || 'WINGO';
+
+        let message = "";
+        let emoji = "";
+
+        if (betResult === "WIN") {
+            emoji = "🎉";
+            message = `${emoji} *WIN!* ${emoji}\n\n`;
+            message += `✅ *Your Bet:* ${betTypeStr}\n`;
+            message += `💰 *Amount:* ${amount.toLocaleString()} K\n`;
+            message += `💵 *Profit:* +${profitLoss.toLocaleString()} K\n\n`;
+        } else {
+            emoji = "😢";
+            message = `${emoji} *LOSE* ${emoji}\n\n`;
+            message += `❌ *Your Bet:* ${betTypeStr}\n`;
+            message += `💸 *Amount:* ${amount.toLocaleString()} K\n`;
+            message += `📉 *Loss:* -${amount.toLocaleString()} K\n\n`;
+        }
+
+        message += `🎯 *Result Details:*\n`;
+        message += `• Issue: ${issue}\n`;
+        message += `• Number: ${resultNumber}\n`;
+        message += `• Type: ${resultType}\n`;
+        message += `• Colour: ${resultColour}\n`;
+        message += `• Game: ${gameType}\n\n`;
+
+        // Add current balance
+        if (userSession.loggedIn && userSession.apiInstance) {
+            try {
+                const currentBalance = await userSession.apiInstance.getBalance();
+                message += `💳 *Current Balance:* ${currentBalance.toLocaleString()} K\n\n`;
+                console.log(`💰 Balance retrieved: ${currentBalance} for user ${userId}`);
+            } catch (balanceError) {
+                console.error(`❌ Error getting balance for result message:`, balanceError);
+                message += `💳 *Current Balance:* Unable to check balance\n\n`;
+            }
+        }
+
+        message += `⏰ ${getMyanmarTime()}`;
+
+        console.log(`📨 Sending message to user ${userId}: ${message.substring(0, 100)}...`);
+        
+        // Send message with error handling
+        await this.bot.sendMessage(chatId, message, { 
+            parse_mode: 'Markdown',
+            disable_notification: false // Ensure notification is enabled
+        });
+        
+        console.log(`✅ Result message sent successfully to user ${userId}`);
+
+        // Send additional sequence info for non-wait mode bets
+        if (amount > 0) {
+            await this.sendSequenceInfo(userId, chatId, betResult);
+        }
+
+    } catch (error) {
+        console.error(`💥 Error sending result message to user ${userId}:`, error);
+        
+        // Try sending a simple message if the formatted one fails
+        try {
+            const simpleMessage = betResult === "WIN" ? 
+                `🎉 WIN! ${betTypeStr} bet on issue ${issue}. Profit: +${profitLoss}K` :
+                `😢 LOSE! ${betTypeStr} bet on issue ${issue}. Loss: -${amount}K`;
+                
+            await this.bot.sendMessage(userId, simpleMessage);
+            console.log(`✅ Simple message sent as fallback to user ${userId}`);
+        } catch (fallbackError) {
+            console.error(`💥 Even simple message failed for user ${userId}:`, fallbackError);
         }
     }
+}
 
-    async updateBetSequence(userId, result) {
-        try {
-            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+async sendSequenceInfo(userId, chatId, betResult) {
+    try {
+        const userSession = userSessions[userId];
+        if (!userSession) return;
+
+        const slSession = await this.getSlBetSession(userId);
+        
+        // Only update sequence for non-wait mode
+        if (!slSession.is_wait_mode) {
+            const newIndex = await this.updateBetSequence(userId, betResult);
             const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
             const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+            const nextAmount = amounts[newIndex] || amounts[0];
 
-            let newIndex;
-            if (result === "WIN") {
-                newIndex = 0; // Reset to first step on win
+            let sequenceMessage = "";
+            if (betResult === "WIN") {
+                sequenceMessage = `🔄 *Sequence Reset to Step 1*\n`;
             } else {
-                newIndex = currentIndex + 1; // Move to next step on loss
-                if (newIndex >= amounts.length) {
-                    newIndex = 0; // Reset if at the end
-                }
+                sequenceMessage = `📈 *Next Bet: Step ${newIndex + 1}* (${nextAmount.toLocaleString()} K)\n`;
             }
 
-            await this.saveUserSetting(userId, 'current_bet_index', newIndex);
-            return newIndex;
+            sequenceMessage += `🎯 *Bet Sequence:* ${betSequence}`;
 
-        } catch (error) {
-            console.error(`Error updating bet sequence for user ${userId}:`, error);
-            return 0;
+            await this.bot.sendMessage(chatId, sequenceMessage, { parse_mode: 'Markdown' });
         }
+
+    } catch (error) {
+        console.error(`Error sending sequence info to user ${userId}:`, error);
     }
+}
+
+    async updateBetSequence(userId, result) {
+    try {
+        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+        
+        // BS Formula mode မှာ pattern index ကို win/lose မှာမပြင်ပါ
+        if (randomMode === 'bs_formula') {
+            return await this.getCurrentBetSequenceIndex(userId);
+        }
+        
+        // Original logic for other modes
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+
+        let newIndex;
+        if (result === "WIN") {
+            newIndex = 0; // Reset to first step on win
+        } else {
+            newIndex = currentIndex + 1; // Move to next step on loss
+            if (newIndex >= amounts.length) {
+                newIndex = 0; // Reset if at the end
+            }
+        }
+
+        await this.saveUserSetting(userId, 'current_bet_index', newIndex);
+        return newIndex;
+
+    } catch (error) {
+        console.error(`Error updating bet sequence for user ${userId}:`, error);
+        return 0;
+    }
+}
 
     async updateBotStats(userId, profit = 0) {
         try {
@@ -1715,99 +2030,157 @@ Last update: ${getMyanmarTime()}`;
 
     // Auto betting functions
     async runBot(chatId, userId) {
-        try {
-            const userSession = this.ensureUserSession(userId);
-            
-            if (!userSession.loggedIn) {
-                await this.bot.sendMessage(chatId, "Please login first!");
-                return;
-            }
-
-            if (autoBettingTasks[userId]) {
-                await this.bot.sendMessage(chatId, "Bot is already running!");
-                return;
-            }
-
-            autoBettingTasks[userId] = true;
-            waitingForResults[userId] = false;
-
-            await this.resetSessionStats(userId);
-            await this.saveBotSession(userId, true);
-
-            const startMessage = `🚀 *Auto Bot Started!*\n\n• Game Type: ${userSession.gameType || 'WINGO'}\n• Mode: Random Bot`;
-            await this.bot.sendMessage(chatId, startMessage, { parse_mode: 'Markdown' });
-
-            // Start normal betting
-            this.startAutoBetting(userId);
-            
-        } catch (error) {
-            console.error(`Error running bot for user ${userId}:`, error);
-            await this.bot.sendMessage(chatId, "❌ *Error starting bot.*\n\nPlease try again.", { parse_mode: 'Markdown' });
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        if (!userSession.loggedIn) {
+            await this.bot.sendMessage(chatId, "Please login first!");
+            return;
         }
+
+        if (autoBettingTasks[userId]) {
+            await this.bot.sendMessage(chatId, "Bot is already running!");
+            return;
+        }
+
+        autoBettingTasks[userId] = true;
+        waitingForResults[userId] = false;
+
+        await this.resetSessionStats(userId);
+        await this.saveBotSession(userId, true);
+
+        // Get current betting mode for display
+        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+        let modeText;
+        switch(randomMode) {
+            case 'big':
+                modeText = "Random BIG Only";
+                break;
+            case 'small':
+                modeText = "Random SMALL Only";
+                break;
+            case 'bot':
+                modeText = "Random Bot";
+                break;
+            case 'follow':
+                modeText = "Follow Bot";
+                break;
+            case 'bs_formula':
+                const patternsData = await this.getFormulaPatterns(userId);
+                modeText = `BS Formula (${patternsData.bs_pattern})`;
+                break;
+            case 'colour_formula':
+                const colourPatternsData = await this.getFormulaPatterns(userId);
+                modeText = `Colour Formula (${colourPatternsData.colour_pattern})`;
+                break;
+            default:
+                modeText = "Random Bot";
+        }
+
+        const startMessage = `🚀 *Auto Bot Started!*\n\n• Game Type: ${userSession.gameType || 'WINGO'}\n• Mode: ${modeText}`;
+        await this.bot.sendMessage(chatId, startMessage, { parse_mode: 'Markdown' });
+
+        // Start normal betting
+        this.startAutoBetting(userId);
+        
+    } catch (error) {
+        console.error(`Error running bot for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ *Error starting bot.*\n\nPlease try again.", { parse_mode: 'Markdown' });
     }
+}
 
     startAutoBetting(userId) {
-        const userSession = userSessions[userId];
-        if (!userSession || !userSession.apiInstance) return;
+    const userSession = userSessions[userId];
+    if (!userSession || !userSession.apiInstance) {
+        console.log(`❌ No user session or API instance for user ${userId}`);
+        return;
+    }
 
-        let lastIssue = "";
-        let consecutiveFailures = 0;
-        const maxFailures = 3;
+    let lastIssue = "";
+    let consecutiveFailures = 0;
+    const maxFailures = 3;
 
-        const bettingLoop = async () => {
-            if (!autoBettingTasks[userId]) return;
+    const bettingLoop = async () => {
+        if (!autoBettingTasks[userId]) {
+            console.log(`🛑 Auto betting stopped for user ${userId}`);
+            return;
+        }
 
-            try {
-                if (waitingForResults[userId]) {
-                    setTimeout(bettingLoop, 5000);
-                    return;
-                }
+        try {
+            // If waiting for results, check again later
+            if (waitingForResults[userId]) {
+                console.log(`⏳ User ${userId} waiting for results, checking again in 3 seconds`);
+                setTimeout(bettingLoop, 3000);
+                return;
+            }
 
-                const currentIssue = await userSession.apiInstance.getCurrentIssue();
+            const currentIssue = await userSession.apiInstance.getCurrentIssue();
+            console.log(`🔍 Current issue for user ${userId}: ${currentIssue}, last issue: ${lastIssue}`);
+            
+            if (currentIssue && currentIssue !== lastIssue) {
+                console.log(`🆕 New issue detected: ${currentIssue} for user ${userId}`);
                 
-                if (currentIssue && currentIssue !== lastIssue) {
-                    console.log(`New issue detected: ${currentIssue} for user ${userId}`);
-                    
-                    setTimeout(async () => {
+                // Wait a bit then place bet
+                setTimeout(async () => {
+                    try {
+                        if (!autoBettingTasks[userId]) return;
+
                         if (!(await this.hasUserBetOnIssue(userId, userSession.platform, currentIssue))) {
+                            console.log(`🎯 Placing bet for user ${userId} on issue ${currentIssue}`);
                             await this.placeAutoBet(userId, currentIssue);
                             lastIssue = currentIssue;
                             consecutiveFailures = 0;
                         } else {
-                            console.log(`User ${userId} already bet on issue ${currentIssue}`);
+                            console.log(`⏭️ User ${userId} already bet on issue ${currentIssue}`);
                         }
-                        bettingLoop();
-                    }, 3000);
-                } else {
-                    setTimeout(bettingLoop, 5000);
-                }
-            } catch (error) {
-                console.error(`Auto betting error for user ${userId}:`, error);
-                consecutiveFailures++;
-                if (consecutiveFailures >= maxFailures) {
-                    this.bot.sendMessage(userId, "❌ *Auto Bot Stopped* - Too many errors!").catch(console.error);
-                    delete autoBettingTasks[userId];
-                    delete waitingForResults[userId];
-                    this.saveBotSession(userId, false);
-                } else {
-                    setTimeout(bettingLoop, 10000);
-                }
+                        
+                        setTimeout(bettingLoop, 2000);
+                    } catch (error) {
+                        console.error(`❌ Error in betting timeout for user ${userId}:`, error);
+                        setTimeout(bettingLoop, 5000);
+                    }
+                }, 2000);
+            } else {
+                console.log(`🔄 Same issue or no issue for user ${userId}, checking again in 3 seconds`);
+                setTimeout(bettingLoop, 3000);
             }
-        };
+        } catch (error) {
+            console.error(`❌ Auto betting error for user ${userId}:`, error);
+            consecutiveFailures++;
+            
+            if (consecutiveFailures >= maxFailures) {
+                console.log(`🛑 Too many errors, stopping bot for user ${userId}`);
+                this.bot.sendMessage(userId, "❌ *Auto Bot Stopped* - Too many errors!").catch(console.error);
+                delete autoBettingTasks[userId];
+                delete waitingForResults[userId];
+                this.saveBotSession(userId, false);
+            } else {
+                console.log(`🔄 Retrying after error for user ${userId} (${consecutiveFailures}/${maxFailures})`);
+                setTimeout(bettingLoop, 5000);
+            }
+        }
+    };
 
-        bettingLoop();
-    }
+    console.log(`🚀 Starting auto betting loop for user ${userId}`);
+    bettingLoop();
+}
 
     async placeAutoBet(userId, issue) {
-        const userSession = userSessions[userId];
-        if (!userSession.loggedIn) return;
+    const userSession = userSessions[userId];
+    if (!userSession || !userSession.loggedIn) {
+        console.log(`❌ User ${userId} not logged in for auto bet`);
+        return;
+    }
 
-        waitingForResults[userId] = true;
+    waitingForResults[userId] = true;
 
-        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
-        
-        let betType, betTypeStr;
+    const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+    
+    let betType, betTypeStr;
 
+    console.log(`🎯 Auto betting for user ${userId}, mode: ${randomMode}, game: ${userSession.gameType}`);
+
+    try {
         // Determine bet type based on random mode
         switch(randomMode) {
             case 'big':
@@ -1823,49 +2196,153 @@ Last update: ${getMyanmarTime()}`;
                 betType = followResult.betType;
                 betTypeStr = followResult.betTypeStr;
                 break;
+            case 'bs_formula':
+                const bsResult = await this.getBsFormulaBetType(userId);
+                betType = bsResult.betType;
+                betTypeStr = bsResult.betTypeStr;
+                break;
+            case 'colour_formula':
+                const colourResult = await this.getColourFormulaBetType(userId);
+                betType = colourResult.betType;
+                betTypeStr = colourResult.betTypeStr;
+                break;
             default: // random bot
                 betType = Math.random() < 0.5 ? 13 : 14;
                 betTypeStr = betType === 13 ? "BIG" : "SMALL";
         }
 
-        const amount = await this.getCurrentBetAmount(userId);
-        const balance = await userSession.apiInstance.getBalance();
+        console.log(`🎲 Selected bet type: ${betType} (${betTypeStr}) for user ${userId}`);
 
-        if (amount > 0 && balance < amount) {
-            this.bot.sendMessage(userId, `💸 *Insufficient Balance!*\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`, { parse_mode: 'Markdown' }).catch(console.error);
-            delete autoBettingTasks[userId];
-            delete waitingForResults[userId];
-            return;
+        // TRX game မှာ Colour bet ကို BIG/SMALL ပြောင်းပေးခြင်း
+        if (userSession.gameType === 'TRX' && (betType === 10 || betType === 11 || betType === 12)) {
+            console.log(`🔄 TRX game - Converting colour bet to BIG/SMALL for user ${userId}`);
+            betType = Math.random() < 0.5 ? 13 : 14;
+            betTypeStr = `${betType === 13 ? 'BIG' : 'SMALL'} (Colour Formula Converted)`;
         }
 
-        try {
-            // Send betting message
-            const betMessage = `🎰 *Placing Auto Bet*\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Issue: ${issue}`;
-            await this.bot.sendMessage(userId, betMessage, { parse_mode: 'Markdown' });
+        const amount = await this.getCurrentBetAmount(userId);
+        console.log(`💰 Bet amount for user ${userId}: ${amount}`);
 
-            const result = await userSession.apiInstance.placeBet(amount, betType);
+    // ဒီနေရာကနေ ကျန်တဲ့ code တွေ ဆက်ရေးပါ...
+    const balance = await userSession.apiInstance.getBalance();
+
+    if (amount > 0 && balance < amount) {
+        console.log(`💸 Insufficient balance for user ${userId}: ${balance} < ${amount}`);
+        this.bot.sendMessage(userId, `💸 *Insufficient Balance!*\n\nNeed: ${amount.toLocaleString()} K\nAvailable: ${balance.toLocaleString()} K`, { parse_mode: 'Markdown' }).catch(console.error);
+        delete autoBettingTasks[userId];
+        waitingForResults[userId] = false;
+        return;
+    }
+
+    // Check profit/loss targets
+    const botSession = await this.getBotSession(userId);
+    const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
+    const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
+    
+    const netProfit = botSession.session_profit - botSession.session_loss;
+    
+    if (profitTarget > 0 && netProfit >= profitTarget) {
+        console.log(`🎯 Profit target reached for user ${userId}: ${netProfit} >= ${profitTarget}`);
+        this.bot.sendMessage(userId, `🎯 *Profit Target Reached!*\n\n💰 Current Profit: ${netProfit.toLocaleString()} K\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
+        delete autoBettingTasks[userId];
+        waitingForResults[userId] = false;
+        await this.saveBotSession(userId, false);
+        return;
+    }
+    
+    if (lossTarget > 0 && botSession.session_loss >= lossTarget) {
+        console.log(`🛑 Loss target reached for user ${userId}: ${botSession.session_loss} >= ${lossTarget}`);
+        this.bot.sendMessage(userId, `🛑 *Loss Target Reached!*\n\n📉 Current Loss: ${botSession.session_loss.toLocaleString()} K\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Auto bot stopped automatically.`, { parse_mode: 'Markdown' }).catch(console.error);
+        delete autoBettingTasks[userId];
+        waitingForResults[userId] = false;
+        await this.saveBotSession(userId, false);
+        return;
+    }
+
+    try {
+        // Send betting message
+        const betMessage = `🎰 *Placing Auto Bet*\n\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Issue: ${issue}`;
+        await this.bot.sendMessage(userId, betMessage, { parse_mode: 'Markdown' });
+
+        console.log(`📤 Placing bet for user ${userId}: ${betTypeStr} ${amount}K on ${issue}`);
+        const result = await userSession.apiInstance.placeBet(amount, betType);
+        
+        if (result.success) {
+            console.log(`✅ Bet placed successfully for user ${userId}`);
+            await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
             
-            if (result.success) {
-                await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
-                
-                if (!issueCheckers[userId]) {
-                    this.startIssueChecker(userId);
-                }
-
-                const successMessage = `✅ *Bet Placed Successfully!*\n\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K`;
-                await this.bot.sendMessage(userId, successMessage, { parse_mode: 'Markdown' });
-            } else {
-                const errorMessage = `❌ *Bet Failed*\n\nError: ${result.message}`;
-                await this.bot.sendMessage(userId, errorMessage, { parse_mode: 'Markdown' });
-                waitingForResults[userId] = false;
+            if (!issueCheckers[userId]) {
+                console.log(`🔍 Starting issue checker for user ${userId}`);
+                this.startIssueChecker(userId);
             }
-        } catch (error) {
-            console.error(`Auto bet placement error:`, error);
-            const errorMessage = `❌ *Bet Error*\n\nError: ${error.message}`;
+
+            const successMessage = `✅ *Bet Placed Successfully!*\n\n• Issue: ${result.issueId}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K`;
+            await this.bot.sendMessage(userId, successMessage, { parse_mode: 'Markdown' });
+            
+        } else {
+            console.log(`❌ Bet failed for user ${userId}: ${result.message}`);
+            const errorMessage = `❌ *Bet Failed*\n\nError: ${result.message}`;
             await this.bot.sendMessage(userId, errorMessage, { parse_mode: 'Markdown' });
+            
+            // Reset waiting state on failure
             waitingForResults[userId] = false;
         }
+} catch (error) {
+        console.error(`❌ Error in placeAutoBet for user ${userId}:`, error);
+        waitingForResults[userId] = false;
     }
+}
+
+async getBsFormulaBetType(userId) {
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const bsPattern = patternsData.bs_pattern;
+        let currentIndex = patternsData.bs_current_index;
+        
+        if (!bsPattern) {
+            // Fallback to random if no pattern
+            const betType = Math.random() < 0.5 ? 13 : 14;
+            return { 
+                betType, 
+                betTypeStr: betType === 13 ? "BIG (Random Fallback)" : "SMALL (Random Fallback)" 
+            };
+        }
+
+        const patternArray = bsPattern.split(',');
+        
+        if (currentIndex >= patternArray.length) {
+            currentIndex = 0; // Reset to start if at end
+        }
+
+        const currentBet = patternArray[currentIndex];
+        const betType = currentBet === 'B' ? 13 : 14;
+        const betTypeStr = `${currentBet === 'B' ? 'BIG' : 'SMALL'} (BS Formula ${currentIndex + 1}/${patternArray.length})`;
+
+        // Update index for next bet
+        const newIndex = currentIndex + 1;
+        await this.updateBsPatternIndex(userId, newIndex);
+
+        return { betType, betTypeStr };
+        
+    } catch (error) {
+        console.error(`Error getting BS formula bet type for user ${userId}:`, error);
+        const betType = Math.random() < 0.5 ? 13 : 14;
+        return { betType, betTypeStr: betType === 13 ? "BIG" : "SMALL" };
+    }
+}
+
+async updateBsPatternIndex(userId, newIndex) {
+    try {
+        await this.db.run(
+            'UPDATE formula_patterns SET bs_current_index = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [newIndex, userId]
+        );
+        return true;
+    } catch (error) {
+        console.error(`Error updating BS pattern index for user ${userId}:`, error);
+        return false;
+    }
+}
 
     async getFollowBetType(apiInstance) {
         try {
@@ -1975,6 +2452,15 @@ Last update: ${getMyanmarTime()}`;
             return defaultValue;
         }
     }
+    async getCurrentBetSequenceIndex(userId) {
+    try {
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        return currentIndex;
+    } catch (error) {
+        console.error(`Error getting current bet sequence index for user ${userId}:`, error);
+        return 0;
+    }
+}
 
     async getCurrentBetAmount(userId) {
         try {
@@ -2256,15 +2742,24 @@ async getBetHistory(userId, platform = null, limit = 10) {
             case 'follow':
                 modeText = "Follow Bot";
                 break;
+            case 'bs_formula':
+                modeText = "BS Formula";
+                formulaStatus += `\n- BS Formula: ACTIVE (${bsPattern})`;
+                break;
+            case 'colour_formula':
+                modeText = "Colour Formula";
+                formulaStatus += `\n- Colour Formula: ACTIVE (${colourPattern})`;
+                break;
             default:
                 modeText = "Random Bot";
         }
         
-        if (bsPattern && bsPattern !== "Not set") {
-            formulaStatus += `\n- BS Formula: ACTIVE (${bsPattern})`;
+        // Show inactive formula patterns
+        if (bsPattern && bsPattern !== "Not set" && randomMode !== 'bs_formula') {
+            formulaStatus += `\n- BS Formula: INACTIVE (${bsPattern})`;
         }
-        if (colourPattern && colourPattern !== "Not set") {
-            formulaStatus += `\n- Colour Formula: ACTIVE (${colourPattern})`;
+        if (colourPattern && colourPattern !== "Not set" && randomMode !== 'colour_formula') {
+            formulaStatus += `\n- Colour Formula: INACTIVE (${colourPattern})`;
         }
         
         let slStatus = "";
@@ -2272,13 +2767,31 @@ async getBetHistory(userId, platform = null, limit = 10) {
             slStatus = `\n- SL Layer: READY (${slPattern})`;
         }
 
+        // Create formatted bet sequence with current step highlighted
+        const amounts = betSequence.split(',').map(x => {
+            const num = parseInt(x.trim());
+            return isNaN(num) ? 0 : num;
+        });
+        
+        let formattedSequence = "";
+        amounts.forEach((amount, index) => {
+            if (index === currentIndex) {
+                formattedSequence += `▶️ *${amount.toLocaleString()}*`;
+            } else {
+                formattedSequence += `${amount.toLocaleString()}`;
+            }
+            if (index < amounts.length - 1) {
+                formattedSequence += " → ";
+            }
+        });
+
         const settingsText = `🤖 *Bot Settings*
 
 *Current Settings:*
 - 🎮 Game Type: ${gameType}
 - 🎯 Betting Mode: ${modeText}
-- 💰 Bet Sequence: ${betSequence}
-- 🔢 Current Bet: ${currentAmount.toLocaleString()} K (Step ${currentIndex + 1})
+- 💰 Bet Sequence: ${formattedSequence}
+- 🔢 Current Step: ${currentIndex + 1}/${amounts.length}
 - 🚀 Bot Status: ${botSession.is_running ? 'RUNNING' : 'STOPPED'}${formulaStatus}${slStatus}
 
 *Profit/Loss Targets:*
@@ -2500,12 +3013,92 @@ Choose your betting mode:`;
     }
 
     async viewBsPattern(chatId, userId) {
-        await this.bot.sendMessage(chatId, "View BS Pattern feature will be implemented soon.");
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const bsPattern = patternsData.bs_pattern;
+        const currentIndex = patternsData.bs_current_index;
+        
+        if (!bsPattern) {
+            await this.bot.sendMessage(chatId, "❌ *No BS Pattern Set!*\n\nPlease set a BS pattern first using 'Set BS Pattern'.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        const patternArray = bsPattern.split(',');
+        let patternDisplay = "";
+        
+        patternArray.forEach((betType, index) => {
+            if (index === currentIndex) {
+                patternDisplay += `▶️ *${betType}*`;
+            } else {
+                patternDisplay += betType;
+            }
+            if (index < patternArray.length - 1) {
+                patternDisplay += " → ";
+            }
+        });
+
+        const patternInfo = `📊 *Current BS Pattern*\n\n🎯 Pattern: ${patternDisplay}\n📏 Total Steps: ${patternArray.length}\n🔢 Current Step: ${currentIndex + 1}\n\n*Next Bet:* ${patternArray[currentIndex] === 'B' ? 'BIG' : 'SMALL'}`;
+
+        await this.bot.sendMessage(chatId, patternInfo, {
+            parse_mode: 'Markdown'
+        });
+        
+    } catch (error) {
+        console.error(`Error viewing BS pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error viewing BS pattern. Please try again.", {
+            parse_mode: 'Markdown'
+        });
     }
+}
 
     async viewColourPattern(chatId, userId) {
-        await this.bot.sendMessage(chatId, "View Colour Pattern feature will be implemented soon.");
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const colourPattern = patternsData.colour_pattern;
+        const currentIndex = patternsData.colour_current_index;
+        
+        if (!colourPattern) {
+            await this.bot.sendMessage(chatId, "❌ *No Colour Pattern Set!*\n\nPlease set a Colour pattern first using 'Set Colour Pattern'.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        const patternArray = colourPattern.split(',');
+        let patternDisplay = "";
+        
+        patternArray.forEach((colour, index) => {
+            if (index === currentIndex) {
+                patternDisplay += `▶️ *${colour}*`;
+            } else {
+                patternDisplay += colour;
+            }
+            if (index < patternArray.length - 1) {
+                patternDisplay += " → ";
+            }
+        });
+
+        const colourNames = {
+            'G': 'GREEN',
+            'R': 'RED', 
+            'V': 'VIOLET'
+        };
+
+        const patternInfo = `📊 *Current Colour Pattern*\n\n🎯 Pattern: ${patternDisplay}\n📏 Total Steps: ${patternArray.length}\n🔢 Current Step: ${currentIndex + 1}\n\n*Next Bet:* ${colourNames[patternArray[currentIndex]] || patternArray[currentIndex]}`;
+
+        await this.bot.sendMessage(chatId, patternInfo, {
+            parse_mode: 'Markdown'
+        });
+        
+    } catch (error) {
+        console.error(`Error viewing Colour pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error viewing Colour pattern. Please try again.", {
+            parse_mode: 'Markdown'
+        });
     }
+}
 
     async viewSlPattern(chatId, userId) {
         await this.bot.sendMessage(chatId, "View SL Pattern feature will be implemented soon.");
@@ -2516,34 +3109,271 @@ Choose your betting mode:`;
     }
 
     async handleSetBetSequence(chatId, userId, text) {
-        await this.bot.sendMessage(chatId, "Set bet sequence feature will be implemented soon.", {
-            reply_markup: this.getMainKeyboard()
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        // Validate bet sequence format
+        const betSequence = text.trim();
+        const amounts = betSequence.split(',').map(x => {
+            const num = parseInt(x.trim());
+            return isNaN(num) ? null : num;
+        }).filter(x => x !== null);
+        
+        if (amounts.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid bet sequence format!*\n\nPlease enter valid numbers separated by commas.\nExample: 100,300,700,1600,3200,7600,16000,32000", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+        
+        // Check if all amounts are positive
+        if (amounts.some(amount => amount <= 0)) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid bet amounts!*\n\nAll bet amounts must be positive numbers.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+        
+        // Save the bet sequence
+        await this.saveUserSetting(userId, 'bet_sequence', betSequence);
+        await this.saveUserSetting(userId, 'current_bet_index', 0); // Reset to first step
+        
+        const currentAmount = amounts[0];
+        
+        const successMessage = `✅ *Bet Sequence Updated!*\n\n🎯 *New Sequence:* ${betSequence}\n💰 *Current Bet:* ${currentAmount.toLocaleString()} K (Step 1)\n\n🤖 Bot will now use this sequence for auto betting.`;
+        
+        await this.bot.sendMessage(chatId, successMessage, {
+            reply_markup: this.getBotSettingsKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+        userSession.step = 'main';
+        
+    } catch (error) {
+        console.error(`Error setting bet sequence for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ *Error setting bet sequence.*\n\nPlease try again with valid format:\nExample: 100,300,700,1600,3200,7600,16000,32000", {
+            parse_mode: 'Markdown'
         });
     }
+}
 
     async handleSetProfitTarget(chatId, userId, text) {
-        await this.bot.sendMessage(chatId, "Set profit target feature will be implemented soon.", {
-            reply_markup: this.getBotSettingsKeyboard()
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        const profitTarget = parseInt(text.trim());
+        
+        if (isNaN(profitTarget) || profitTarget < 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid profit target!*\n\nPlease enter a valid positive number.\nEnter 0 to disable profit target.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+        
+        await this.saveUserSetting(userId, 'profit_target', profitTarget);
+        
+        let message;
+        if (profitTarget === 0) {
+            message = "✅ *Profit Target Disabled!*\n\n🤖 Bot will no longer stop automatically when reaching profit target.";
+        } else {
+            message = `✅ *Profit Target Set!*\n\n🎯 Target: ${profitTarget.toLocaleString()} K\n\n🤖 Bot will automatically stop when profit reaches ${profitTarget.toLocaleString()} K.`;
+        }
+        
+        await this.bot.sendMessage(chatId, message, {
+            reply_markup: this.getBotSettingsKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+        userSession.step = 'main';
+        
+    } catch (error) {
+        console.error(`Error setting profit target for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ *Error setting profit target.*\n\nPlease try again.", {
+            parse_mode: 'Markdown'
         });
     }
+}
 
     async handleSetLossTarget(chatId, userId, text) {
-        await this.bot.sendMessage(chatId, "Set loss target feature will be implemented soon.", {
-            reply_markup: this.getBotSettingsKeyboard()
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        const lossTarget = parseInt(text.trim());
+        
+        if (isNaN(lossTarget) || lossTarget < 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid loss target!*\n\nPlease enter a valid positive number.\nEnter 0 to disable loss target.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+        
+        await this.saveUserSetting(userId, 'loss_target', lossTarget);
+        
+        let message;
+        if (lossTarget === 0) {
+            message = "✅ *Loss Target Disabled!*\n\n🤖 Bot will no longer stop automatically when reaching loss target.";
+        } else {
+            message = `✅ *Loss Target Set!*\n\n🛑 Target: ${lossTarget.toLocaleString()} K\n\n🤖 Bot will automatically stop when loss reaches ${lossTarget.toLocaleString()} K.`;
+        }
+        
+        await this.bot.sendMessage(chatId, message, {
+            reply_markup: this.getBotSettingsKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+        userSession.step = 'main';
+        
+    } catch (error) {
+        console.error(`Error setting loss target for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ *Error setting loss target.*\n\nPlease try again.", {
+            parse_mode: 'Markdown'
         });
     }
+}
 
     async handleSetBsPattern(chatId, userId, text) {
-        await this.bot.sendMessage(chatId, "Set BS pattern feature will be implemented soon.", {
-            reply_markup: this.getBsPatternKeyboard()
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        // Validate BS pattern
+        const pattern = text.trim().toUpperCase();
+        const validPattern = /^[BS,]+$/.test(pattern);
+        
+        if (!validPattern || pattern.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid BS Pattern!*\n\nPlease use ONLY:\n- B for BIG\n- S for SMALL\n- Comma (,) to separate\n\nExamples:\n• B,S,B,B\n• S,S,B\n• B,B,B,S", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        // Clean and validate pattern
+        const patternArray = pattern.split(',').map(p => p.trim()).filter(p => p === 'B' || p === 'S');
+        
+        if (patternArray.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid BS Pattern!*\n\nPattern must contain at least one B or S.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        const cleanPattern = patternArray.join(',');
+
+        // Save to database
+        await this.saveBsPattern(userId, cleanPattern);
+        
+        // Set betting mode to BS Formula
+        await this.saveUserSetting(userId, 'random_betting', 'bs_formula');
+
+        const successMessage = `✅ *BS Pattern Set Successfully!*\n\n🎯 Pattern: ${cleanPattern}\n📊 Length: ${patternArray.length} steps\n🔢 Current Index: 1\n\n🤖 Bot will now use BS Formula pattern for auto betting.`;
+
+        await this.bot.sendMessage(chatId, successMessage, {
+            reply_markup: this.getBsPatternKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+        userSession.step = 'main';
+        
+    } catch (error) {
+        console.error(`Error setting BS pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ *Error setting BS pattern.*\n\nPlease try again.", {
+            parse_mode: 'Markdown'
         });
     }
+}
+
+async saveBsPattern(userId, pattern) {
+    try {
+        const existing = await this.db.get('SELECT user_id FROM formula_patterns WHERE user_id = ?', [userId]);
+        
+        if (existing) {
+            await this.db.run(
+                'UPDATE formula_patterns SET bs_pattern = ?, bs_current_index = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+                [pattern, userId]
+            );
+        } else {
+            await this.db.run(
+                'INSERT INTO formula_patterns (user_id, bs_pattern, bs_current_index) VALUES (?, ?, 0)',
+                [userId, pattern]
+            );
+        }
+        return true;
+    } catch (error) {
+        console.error(`Error saving BS pattern for user ${userId}:`, error);
+        return false;
+    }
+}
 
     async handleSetColourPattern(chatId, userId, text) {
-        await this.bot.sendMessage(chatId, "Set colour pattern feature will be implemented soon.", {
-            reply_markup: this.getColourPatternKeyboard()
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        // Validate Colour pattern
+        const pattern = text.trim().toUpperCase();
+        const validPattern = /^[GRV,]+$/.test(pattern);
+        
+        if (!validPattern || pattern.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid Colour Pattern!*\n\nPlease use ONLY:\n- G for GREEN\n- R for RED\n- V for VIOLET\n- Comma (,) to separate\n\nExamples:\n• R,G,V,R\n• G,V,R\n• R,R,G", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        // Clean and validate pattern
+        const patternArray = pattern.split(',').map(p => p.trim()).filter(p => p === 'G' || p === 'R' || p === 'V');
+        
+        if (patternArray.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ *Invalid Colour Pattern!*\n\nPattern must contain at least one G, R or V.", {
+                parse_mode: 'Markdown'
+            });
+            return;
+        }
+
+        const cleanPattern = patternArray.join(',');
+
+        // Save to database
+        await this.saveColourPattern(userId, cleanPattern);
+        
+        // Set betting mode to Colour Formula
+        await this.saveUserSetting(userId, 'random_betting', 'colour_formula');
+
+        const successMessage = `✅ *Colour Pattern Set Successfully!*\n\n🎯 Pattern: ${cleanPattern}\n📊 Length: ${patternArray.length} steps\n🔢 Current Index: 1\n\n🤖 Bot will now use Colour Formula pattern for auto betting.`;
+
+        await this.bot.sendMessage(chatId, successMessage, {
+            reply_markup: this.getColourPatternKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+        userSession.step = 'main';
+        
+    } catch (error) {
+        console.error(`Error setting Colour pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ *Error setting Colour pattern.*\n\nPlease try again.", {
+            parse_mode: 'Markdown'
         });
     }
+}
+
+async saveColourPattern(userId, pattern) {
+    try {
+        const existing = await this.db.get('SELECT user_id FROM formula_patterns WHERE user_id = ?', [userId]);
+        
+        if (existing) {
+            await this.db.run(
+                'UPDATE formula_patterns SET colour_pattern = ?, colour_current_index = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+                [pattern, userId]
+            );
+        } else {
+            await this.db.run(
+                'INSERT INTO formula_patterns (user_id, colour_pattern, colour_current_index) VALUES (?, ?, 0)',
+                [userId, pattern]
+            );
+        }
+        return true;
+    } catch (error) {
+        console.error(`Error saving Colour pattern for user ${userId}:`, error);
+        return false;
+    }
+}
 
     async handleSetSlPattern(chatId, userId, text) {
         await this.bot.sendMessage(chatId, "Set SL pattern feature will be implemented soon.", {
@@ -2556,12 +3386,40 @@ Choose your betting mode:`;
     }
 
     async clearBsPattern(chatId, userId) {
-        await this.bot.sendMessage(chatId, "Clear BS pattern feature will be implemented soon.");
+    try {
+        await this.clearFormulaPatterns(userId, 'bs');
+        await this.saveUserSetting(userId, 'random_betting', 'bot'); // Reset to default mode
+        
+        await this.bot.sendMessage(chatId, "✅ *BS Pattern Cleared!*\n\nBS Formula mode has been disabled. Bot will return to Random Bot mode.", {
+            reply_markup: this.getBsPatternKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+    } catch (error) {
+        console.error(`Error clearing BS pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error clearing BS pattern. Please try again.", {
+            parse_mode: 'Markdown'
+        });
     }
+}
 
     async clearColourPattern(chatId, userId) {
-        await this.bot.sendMessage(chatId, "Clear colour pattern feature will be implemented soon.");
+    try {
+        await this.clearFormulaPatterns(userId, 'colour');
+        await this.saveUserSetting(userId, 'random_betting', 'bot'); // Reset to default mode
+        
+        await this.bot.sendMessage(chatId, "✅ *Colour Pattern Cleared!*\n\nColour Formula mode has been disabled. Bot will return to Random Bot mode.", {
+            reply_markup: this.getColourPatternKeyboard(),
+            parse_mode: 'Markdown'
+        });
+        
+    } catch (error) {
+        console.error(`Error clearing Colour pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error clearing Colour pattern. Please try again.", {
+            parse_mode: 'Markdown'
+        });
     }
+}
 
     // Admin functions
     async handleAddGameId(msg, match) {
