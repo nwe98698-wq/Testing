@@ -2152,7 +2152,7 @@ Last update: ${getMyanmarTime()}`;
         const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
         const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
 
-        console.log(`🔄 Updating bet sequence for user ${userId}: currentIndex=${currentIndex}, result=${result}`);
+        console.log(`🔄 Updating bet sequence for user ${userId}: currentIndex=${currentIndex}, result=${result}, sequence=${betSequence}`);
 
         let newIndex;
         if (result === "WIN") {
@@ -2160,8 +2160,10 @@ Last update: ${getMyanmarTime()}`;
             console.log(`✅ Win - Reset sequence to step 1`);
         } else {
             newIndex = currentIndex + 1; // Move to next step on loss
+            
+            // ✅ အရေးကြီးပြင်ဆင်ချက်: sequence ဆုံးရင် ပြန်စမယ်
             if (newIndex >= amounts.length) {
-                newIndex = 0; // Reset if at the end
+                newIndex = 0; // Reset to beginning if at the end
                 console.log(`🔄 Loss - Reached end of sequence, reset to step 1`);
             } else {
                 console.log(`📈 Loss - Move to next step: ${currentIndex} -> ${newIndex}`);
@@ -2502,60 +2504,28 @@ Last update: ${getMyanmarTime()}`;
 
     async getCurrentBetAmount(userId) {
     try {
-        const userSession = this.ensureUserSession(userId);
-        const gameType = userSession.gameType || 'WINGO';
-        
-        // Get user's bet sequence setting
-        let userSequence = await this.getUserSetting(userId, 'bet_sequence', '');
-        
-        let defaultSequence;
-        if (gameType === 'WINGO_3MIN') {
-            defaultSequence = '100,500,1000,5000';
-        } else if (gameType === 'TRX') {
-            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-        } else {
-            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-        }
-        
-        // Use user's sequence if available, otherwise use default
-        const betSequence = userSequence || defaultSequence;
         const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
-        
-        const amounts = betSequence.split(',').map(x => {
-            const num = parseInt(x.trim());
-            return isNaN(num) ? 0 : num;
-        }).filter(x => x > 0);
-        
-        if (amounts.length === 0) {
-            // If no valid amounts, use default sequence
-            const defaultAmounts = defaultSequence.split(',').map(x => parseInt(x.trim()));
-            const amount = defaultAmounts[0] || 100;
-            console.log(`💰 Using default bet amount for ${gameType}: ${amount}K`);
-            return amount;
-        }
-        
-        if (currentIndex < amounts.length) {
-            const amount = amounts[currentIndex];
-            console.log(`💰 Current bet amount for ${gameType}: ${amount}K (index: ${currentIndex}, sequence: ${betSequence})`);
-            return amount;
-        } else {
-            const amount = amounts[0] || 100;
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+
+        console.log(`💰 Getting bet amount for user ${userId}: index=${currentIndex}, sequence=${betSequence}`);
+
+        // ✅ Sequence ဆုံးသွားရင် ပြန်စမယ်
+        const actualIndex = currentIndex >= amounts.length ? 0 : currentIndex;
+        const amount = amounts[actualIndex] || amounts[0] || 100;
+
+        // ✅ Index မှားနေရင် ပြန်ချိန်းမယ်
+        if (currentIndex >= amounts.length) {
             await this.saveUserSetting(userId, 'current_bet_index', 0);
-            console.log(`💰 Reset to first bet amount for ${gameType}: ${amount}K`);
-            return amount;
+            console.log(`🔄 Corrected invalid index: ${currentIndex} -> 0`);
         }
+
+        console.log(`💰 Final bet amount: ${amount}K (index: ${actualIndex})`);
+        return amount;
+
     } catch (error) {
         console.error(`Error getting current bet amount for ${userId}:`, error);
-        
-        // Fallback amounts based on game type
-        const userSession = this.ensureUserSession(userId);
-        const gameType = userSession.gameType || 'WINGO';
-        
-        if (gameType === 'WINGO_3MIN') {
-            return 100;
-        } else {
-            return 100;
-        }
+        return 100; // fallback amount
     }
 }
 
