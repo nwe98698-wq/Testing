@@ -690,8 +690,15 @@ class AutoLotteryBot {
         return userSessions[userId];
     }
 
-    getMainKeyboard() {
-    const userSession = this.ensureUserSession(this.currentUserId); // You'll need to track current user
+    getMainKeyboard(userId = null) {
+    // currentUserId ကို parameter အဖြစ်လက်ခံပြီး userSession ရယူမယ်
+    let userSession;
+    if (userId) {
+        userSession = this.ensureUserSession(userId);
+    } else {
+        // Fallback for backward compatibility
+        userSession = { gameType: 'WINGO' };
+    }
     
     // TRX game ဖြစ်ရင် Colour buttons ကို ဖျောက်မယ်
     if (userSession && userSession.gameType === 'TRX') {
@@ -2885,6 +2892,7 @@ Choose your betting mode:`;
         });
     } catch (error) {
         console.error(`Error showing bot settings for user ${userId}:`, error);
+        console.error('Error details:', error.stack);
         await this.bot.sendMessage(chatId, "❌ Error loading bot settings. Please try again.", {
             parse_mode: 'Markdown'
         });
