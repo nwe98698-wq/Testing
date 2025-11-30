@@ -1707,197 +1707,212 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async checkSingleBetResult(userId, issue) {
-        try {
-            console.log(`🔍 Checking bet result for user ${userId}, issue: ${issue}`);
+    try {
+        console.log(`🔍 Checking bet result for user ${userId}, issue: ${issue}`);
 
-            const userSession = userSessions[userId];
-            if (!userSession || !userSession.apiInstance) {
-                console.log(`❌ No user session or API instance for user ${userId}`);
-                return;
-            }
+        const userSession = userSessions[userId];
+        if (!userSession || !userSession.apiInstance) {
+            console.log(`❌ No user session or API instance for user ${userId}`);
+            return;
+        }
 
-            const platform = userSession.platform || '777';
-            const gameType = userSession.gameType || 'WINGO';
-            
-            const pendingBet = await this.db.get(
-                'SELECT platform, issue, bet_type, amount FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
-                [userId, platform, issue]
-            );
+        const platform = userSession.platform || '777';
+        const gameType = userSession.gameType || 'WINGO';
+        
+        // Get pending bet for this issue
+        const pendingBet = await this.db.get(
+            'SELECT platform, issue, bet_type, amount FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
+            [userId, platform, issue]
+        );
 
-            if (!pendingBet) {
-                console.log(`❌ No pending bet found for user ${userId}, issue ${issue}`);
-                return;
-            }
+        if (!pendingBet) {
+            console.log(`❌ No pending bet found for user ${userId}, issue ${issue}`);
+            return;
+        }
 
-            console.log(`📝 Found pending bet: ${JSON.stringify(pendingBet)}`);
+        console.log(`📝 Found pending bet: ${JSON.stringify(pendingBet)}`);
 
-            const betTypeStr = pendingBet.bet_type;
-            const amount = pendingBet.amount;
+        const betTypeStr = pendingBet.bet_type;
+        const amount = pendingBet.amount;
 
-            if (amount === 0 && betTypeStr.includes("WAIT")) {
-                console.log(`⏭️ Skipping wait mode bet for user ${userId}, issue ${issue}`);
-                await this.db.run(
-                    'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
-                    [userId, platform, issue]
-                );
-                return;
-            }
-
-            const results = await userSession.apiInstance.getRecentResults(20);
-            console.log(`📊 Retrieved ${results.length} recent results for user ${userId}`);
-
-            if (results.length === 0) {
-                console.log(`❌ No results found for user ${userId}`);
-                return;
-            }
-
-            let betResult = "UNKNOWN";
-            let profitLoss = 0;
-            let resultNumber = "";
-            let resultType = "";
-            let resultColour = "";
-
-            let resultFound = false;
-            for (const result of results) {
-                console.log(`🔍 Checking result: ${result.issueNumber} vs ${issue}`);
-                
-                if (result.issueNumber === issue) {
-                    resultFound = true;
-                    resultNumber = result.number || 'N/A';
-                    console.log(`✅ Found matching result for issue ${issue}: number ${resultNumber}`);
-                    
-                    if (gameType === 'TRX') {
-                        if (['0','1','2','3','4'].includes(resultNumber)) {
-                            resultType = "SMALL";
-                        } else {
-                            resultType = "BIG";
-                        }
-
-                        if (['0','5'].includes(resultNumber)) {
-                            resultColour = "VIOLET";
-                        } else if (['1','3','7','9'].includes(resultNumber)) {
-                            resultColour = "GREEN";
-                        } else if (['2','4','6','8'].includes(resultNumber)) {
-                            resultColour = "RED";
-                        } else {
-                            resultColour = "UNKNOWN";
-                        }
-                    } else if (gameType === 'WINGO_3MIN' || gameType === 'WINGO') {
-                        if (['0','1','2','3','4'].includes(resultNumber)) {
-                            resultType = "SMALL";
-                        } else {
-                            resultType = "BIG";
-                        }
-
-                        if (['0','5'].includes(resultNumber)) {
-                            resultColour = "VIOLET";
-                        } else if (['1','3','7','9'].includes(resultNumber)) {
-                            resultColour = "GREEN";
-                        } else if (['2','4','6','8'].includes(resultNumber)) {
-                            resultColour = "RED";
-                        } else {
-                            resultColour = "UNKNOWN";
-                        }
-                    }
-
-                    console.log(`🎯 Result analysis - Type: ${resultType}, Colour: ${resultColour}`);
-
-                    if (betTypeStr.includes("BIG")) {
-                        if (resultType === "BIG") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                            console.log(`✅ BIG bet WON`);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                            console.log(`❌ BIG bet LOST`);
-                        }
-                    } else if (betTypeStr.includes("SMALL")) {
-                        if (resultType === "SMALL") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                            console.log(`✅ SMALL bet WON`);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                            console.log(`❌ SMALL bet LOST`);
-                        }
-                    } else if (betTypeStr.includes("RED")) {
-                        if (resultColour === "RED") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                            console.log(`✅ RED bet WON`);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                            console.log(`❌ RED bet LOST`);
-                        }
-                    } else if (betTypeStr.includes("GREEN")) {
-                        if (resultColour === "GREEN") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.96);
-                            console.log(`✅ GREEN bet WON`);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                            console.log(`❌ GREEN bet LOST`);
-                        }
-                    } else if (betTypeStr.includes("VIOLET")) {
-                        if (resultColour === "VIOLET") {
-                            betResult = "WIN";
-                            profitLoss = Math.floor(amount * 0.44);
-                            console.log(`✅ VIOLET bet WON`);
-                        } else {
-                            betResult = "LOSE";
-                            profitLoss = -amount;
-                            console.log(`❌ VIOLET bet LOST`);
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (!resultFound) {
-                console.log(`❌ Result not found for issue ${issue} in recent results`);
-                return;
-            }
-
-            if (betResult === "UNKNOWN") {
-                console.log(`❓ Unknown bet result for issue ${issue}`);
-                return;
-            }
-
-            await this.db.run(
-                'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
-            );
-            console.log(`💾 Bet history saved for user ${userId}`);
-
+        // Skip processing for wait mode bets with 0 amount
+        if (amount === 0 && betTypeStr.includes("WAIT")) {
+            console.log(`⏭️ Skipping wait mode bet for user ${userId}, issue ${issue}`);
             await this.db.run(
                 'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
                 [userId, platform, issue]
             );
-            console.log(`🗑️ Pending bet removed for user ${userId}`);
-
-            await this.updateBotStats(userId, profitLoss);
-            console.log(`📈 Bot stats updated for user ${userId}`);
-
-            console.log(`🔄 Calling updateBetSequence for user ${userId} with result: ${betResult}`);
-            await this.updateBetSequence(userId, betResult);
-
-            waitingForResults[userId] = false;
-            console.log(`🔄 Reset waitingForResults for user ${userId}`);
-
-            console.log(`📤 Sending result message to user ${userId}`);
-            await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour);
-
-            console.log(`✅ Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
-            
-        } catch (error) {
-            console.error(`💥 Error checking single bet result for user ${userId}, issue ${issue}:`, error);
-            waitingForResults[userId] = false;
+            return;
         }
+
+        // Get recent results
+        const results = await userSession.apiInstance.getRecentResults(20);
+        console.log(`📊 Retrieved ${results.length} recent results for user ${userId}`);
+
+        if (results.length === 0) {
+            console.log(`❌ No results found for user ${userId}`);
+            return;
+        }
+
+        let betResult = "UNKNOWN";
+        let profitLoss = 0;
+        let resultNumber = "";
+        let resultType = "";
+        let resultColour = "";
+
+        // Find the specific issue in results
+        let resultFound = false;
+        for (const result of results) {
+            console.log(`🔍 Checking result: ${result.issueNumber} vs ${issue}`);
+            
+            if (result.issueNumber === issue) {
+                resultFound = true;
+                resultNumber = result.number || 'N/A';
+                console.log(`✅ Found matching result for issue ${issue}: number ${resultNumber}`);
+                
+                // Determine result type and colour based on game type
+                if (gameType === 'TRX') {
+                    // TRX game result logic
+                    if (['0','1','2','3','4'].includes(resultNumber)) {
+                        resultType = "SMALL";
+                    } else {
+                        resultType = "BIG";
+                    }
+
+                    if (['0','5'].includes(resultNumber)) {
+                        resultColour = "VIOLET";
+                    } else if (['1','3','7','9'].includes(resultNumber)) {
+                        resultColour = "GREEN";
+                    } else if (['2','4','6','8'].includes(resultNumber)) {
+                        resultColour = "RED";
+                    } else {
+                        resultColour = "UNKNOWN";
+                    }
+                } else if (gameType === 'WINGO_3MIN' || gameType === 'WINGO') {
+                    // WINGO 3 MIN and normal WINGO game result logic
+                    if (['0','1','2','3','4'].includes(resultNumber)) {
+                        resultType = "SMALL";
+                    } else {
+                        resultType = "BIG";
+                    }
+
+                    if (['0','5'].includes(resultNumber)) {
+                        resultColour = "VIOLET";
+                    } else if (['1','3','7','9'].includes(resultNumber)) {
+                        resultColour = "GREEN";
+                    } else if (['2','4','6','8'].includes(resultNumber)) {
+                        resultColour = "RED";
+                    } else {
+                        resultColour = "UNKNOWN";
+                    }
+                }
+
+                console.log(`🎯 Result analysis - Type: ${resultType}, Colour: ${resultColour}`);
+
+                // Check bet result
+                if (betTypeStr.includes("BIG")) {
+                    if (resultType === "BIG") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ BIG bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ BIG bet LOST`);
+                    }
+                } else if (betTypeStr.includes("SMALL")) {
+                    if (resultType === "SMALL") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ SMALL bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ SMALL bet LOST`);
+                    }
+                } else if (betTypeStr.includes("RED")) {
+                    if (resultColour === "RED") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ RED bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ RED bet LOST`);
+                    }
+                } else if (betTypeStr.includes("GREEN")) {
+                    if (resultColour === "GREEN") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.96);
+                        console.log(`✅ GREEN bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ GREEN bet LOST`);
+                    }
+                } else if (betTypeStr.includes("VIOLET")) {
+                    if (resultColour === "VIOLET") {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(amount * 0.44);
+                        console.log(`✅ VIOLET bet WON`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ VIOLET bet LOST`);
+                    }
+                }
+                break;
+            }
+        }
+
+        if (!resultFound) {
+            console.log(`❌ Result not found for issue ${issue} in recent results`);
+            return;
+        }
+
+        if (betResult === "UNKNOWN") {
+            console.log(`❓ Unknown bet result for issue ${issue}`);
+            return;
+        }
+
+        // Save to bet history
+        await this.db.run(
+            'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
+        );
+        console.log(`💾 Bet history saved for user ${userId}`);
+
+        // Remove from pending bets
+        await this.db.run(
+            'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
+            [userId, platform, issue]
+        );
+        console.log(`🗑️ Pending bet removed for user ${userId}`);
+
+        // Update bot stats
+        await this.updateBotStats(userId, profitLoss);
+        console.log(`📈 Bot stats updated for user ${userId}`);
+
+        // ✅ အရေးကြီးပြင်ဆင်ချက်: Bet sequence ကို update လုပ်မယ်
+        console.log(`🔄 Calling updateBetSequence for user ${userId} with result: ${betResult}`);
+        await this.updateBetSequence(userId, betResult);
+
+        // Reset waiting state to allow next bet
+        waitingForResults[userId] = false;
+        console.log(`🔄 Reset waitingForResults for user ${userId}`);
+
+        // Send win/loss message
+        console.log(`📤 Sending result message to user ${userId}`);
+        await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour);
+
+        console.log(`✅ Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
+        
+    } catch (error) {
+        console.error(`💥 Error checking single bet result for user ${userId}, issue ${issue}:`, error);
+        // Reset waiting state on error too
+        waitingForResults[userId] = false;
     }
+}
 
     async sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour) {
         try {
@@ -2006,37 +2021,37 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async updateBetSequence(userId, result) {
-        try {
-            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
-            const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
-            const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
+    try {
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
+        const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
 
-            console.log(`🔄 Updating bet sequence for user ${userId}: currentIndex=${currentIndex}, result=${result}`);
+        console.log(`🔄 Updating bet sequence for user ${userId}: currentIndex=${currentIndex}, result=${result}`);
 
-            let newIndex;
-            if (result === "WIN") {
-                newIndex = 0;
-                console.log(`✅ Win - Reset sequence to step 1`);
+        let newIndex;
+        if (result === "WIN") {
+            newIndex = 0; // Reset to first step on win
+            console.log(`✅ Win - Reset sequence to step 1`);
+        } else {
+            newIndex = currentIndex + 1; // Move to next step on loss
+            if (newIndex >= amounts.length) {
+                newIndex = 0; // Reset if at the end
+                console.log(`🔄 Loss - Reached end of sequence, reset to step 1`);
             } else {
-                newIndex = currentIndex + 1;
-                if (newIndex >= amounts.length) {
-                    newIndex = 0;
-                    console.log(`🔄 Loss - Reached end of sequence, reset to step 1`);
-                } else {
-                    console.log(`📈 Loss - Move to next step: ${currentIndex} -> ${newIndex}`);
-                }
+                console.log(`📈 Loss - Move to next step: ${currentIndex} -> ${newIndex}`);
             }
-
-            await this.saveUserSetting(userId, 'current_bet_index', newIndex);
-            console.log(`💾 Saved new bet index: ${newIndex} for user ${userId}`);
-            
-            return newIndex;
-
-        } catch (error) {
-            console.error(`❌ Error updating bet sequence for user ${userId}:`, error);
-            return 0;
         }
+
+        await this.saveUserSetting(userId, 'current_bet_index', newIndex);
+        console.log(`💾 Saved new bet index: ${newIndex} for user ${userId}`);
+        
+        return newIndex;
+
+    } catch (error) {
+        console.error(`❌ Error updating bet sequence for user ${userId}:`, error);
+        return 0;
     }
+}
 
     async updateBotStats(userId, profit = 0) {
         try {
