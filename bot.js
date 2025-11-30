@@ -2865,20 +2865,20 @@ async getBetHistory(userId, platform = null, limit = 10) {
             }
         });
 
-        const settingsText = `🤖 *Bot Settings*
+        const settingsText = `🤖 Bot Settings
 
-*Current Settings:*
+Current Settings:
 - 🎮 Game Type: ${gameType}
 - 🎯 Betting Mode: ${modeText}
 - 💰 Bet Sequence: ${formattedSequence}
 - 🔢 Current Step: ${currentIndex + 1}/${amounts.length}
 - 🚀 Bot Status: ${botSession.is_running ? 'RUNNING' : 'STOPPED'}${formulaStatus}${slStatus}
 
-*Profit/Loss Targets:*
+Profit/Loss Targets:
 - 🎯 Profit Target: ${profitTarget > 0 ? profitTarget.toLocaleString() + ' K' : 'Disabled'}
 - 🛑 Loss Target: ${lossTarget > 0 ? lossTarget.toLocaleString() + ' K' : 'Disabled'}
 
-*Bot Statistics:*
+Bot Statistics:
 - 📈 Session Profit: ${botSession.session_profit.toLocaleString()} K
 - 📉 Session Loss: ${botSession.session_loss.toLocaleString()} K
 - 💵 Net Profit: ${(botSession.session_profit - botSession.session_loss).toLocaleString()} K
@@ -2887,15 +2887,13 @@ async getBetHistory(userId, platform = null, limit = 10) {
 Choose your betting mode:`;
 
         await this.bot.sendMessage(chatId, settingsText, {
-            reply_markup: this.getBotSettingsKeyboard(),
-            parse_mode: 'Markdown'
+            reply_markup: this.getBotSettingsKeyboard()
+            // Remove parse_mode: 'Markdown' to fix the formatting error
         });
     } catch (error) {
         console.error(`Error showing bot settings for user ${userId}:`, error);
         console.error('Error details:', error.stack);
-        await this.bot.sendMessage(chatId, "❌ Error loading bot settings. Please try again.", {
-            parse_mode: 'Markdown'
-        });
+        await this.bot.sendMessage(chatId, "❌ Error loading bot settings. Please try again.");
     }
 }
 
