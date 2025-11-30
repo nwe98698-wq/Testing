@@ -385,7 +385,7 @@ class LotteryAPI {
         
         // WINGO_3MIN amount validation - ONLY allow exact amounts
         if (this.gameType === 'WINGO_3MIN') {
-            const allowedAmounts = [100, 500, 1000, 5000];
+            const allowedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000 ];
             
             // Strict validation - only allow exact amounts
             if (!allowedAmounts.includes(validAmount)) {
