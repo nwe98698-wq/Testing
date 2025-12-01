@@ -2944,6 +2944,56 @@ async switchToBettingMode(userId) {
     }
 }
 
+async moveToNextSlLevel(userId) {
+    try {
+        const userSession = userSessions[userId];
+        const slPatternData = await this.getSlPattern(userId);
+        const patternList = slPatternData.pattern.split(',').map(x => parseInt(x.trim()));
+        
+        // Move to next level
+        let newIndex = slPatternData.current_index + 1;
+        
+        if (newIndex >= patternList.length) {
+            newIndex = 0; // Reset to first level
+            console.log(`🔄 Reached end of SL pattern, resetting to first level`);
+        }
+        
+        const nextSl = patternList[newIndex];
+        const isWaitMode = nextSl >= 2;
+        
+        // Update database
+        await this.db.run(
+            'UPDATE sl_patterns SET current_sl = ?, current_index = ?, wait_loss_count = 0, bet_count = 0 WHERE user_id = ?',
+            [nextSl, newIndex, userId]
+        );
+        
+        // Update session
+        await this.db.run(
+            'UPDATE sl_bet_sessions SET is_wait_mode = ?, wait_bet_type = ?, wait_issue = ?, wait_amount = ?, wait_total_profit = ? WHERE user_id = ?',
+            [isWaitMode ? 1 : 0, '', '', 0, 0, userId]
+        );
+        
+        console.log(`✅ Moved to next SL level for user ${userId}: SL${nextSl} (index: ${newIndex})`);
+        
+        // Send notification to user
+        const message = 
+            `🔄 MOVED TO NEXT SL LEVEL\n` +
+            `═══════════════════════\n\n` +
+            `⚡ New Level: SL ${nextSl}\n` +
+            `🎯 Mode: ${isWaitMode ? 'WAIT BOT' : 'BETTING'}\n` +
+            `📊 Position: ${newIndex + 1}/${patternList.length}\n\n` +
+            `Bot will continue with new SL level.`;
+        
+        await this.bot.sendMessage(userId, message);
+        
+        waitingForResults[userId] = false;
+        
+    } catch (error) {
+        console.error(`❌ Error moving to next SL level for user ${userId}:`, error);
+        waitingForResults[userId] = false;
+    }
+}
+
     async getFollowBetType(apiInstance) {
         try {
             const results = await apiInstance.getRecentResults(1);
