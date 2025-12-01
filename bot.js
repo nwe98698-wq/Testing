@@ -2196,7 +2196,7 @@ Last update: ${getMyanmarTime()}`;
         }
     }
 
-    runBot function ထဲမှာ SL Layer ကို check လုပ်ပြီး activate လုပ်ပါ
+   
 async runBot(chatId, userId) {
     try {
         const userSession = this.ensureUserSession(userId);
