@@ -3059,6 +3059,44 @@ async moveToNextSlLevel(userId) {
     }
 }
 
+// Add this function to the AutoLotteryBot class
+
+async switchToBettingMode(userId) {
+    try {
+        const slPatternData = await this.getSlPattern(userId);
+        
+        // Update to betting mode
+        await this.db.run(
+            'UPDATE sl_bet_sessions SET is_wait_mode = 0, wait_bet_type = ?, wait_issue = ?, wait_amount = ?, wait_total_profit = ? WHERE user_id = ?',
+            ['', '', 0, 0, userId]
+        );
+        
+        // Reset bet count to 0 for betting mode
+        await this.db.run(
+            'UPDATE sl_patterns SET wait_loss_count = 0, bet_count = 0 WHERE user_id = ?',
+            [userId]
+        );
+        
+        console.log(`✅ Switching to BETTING mode for user ${userId}, SL${slPatternData.current_sl}`);
+        
+        const bettingMessage = 
+            `🔄 SWITCHING TO REAL BETTING MODE\n` +
+            `═══════════════════════════════\n\n` +
+            `⚡ Current SL: ${slPatternData.current_sl}\n` +
+            `🎯 Mode: REAL BETTING\n\n` +
+            `🎰 Bot will now place REAL bets for 3 consecutive periods\n` +
+            `📊 Bet Count: 0/3`;
+        
+        await this.bot.sendMessage(userId, bettingMessage);
+        
+        waitingForResults[userId] = false;
+        
+    } catch (error) {
+        console.error(`❌ Error switching to betting mode for user ${userId}:`, error);
+        waitingForResults[userId] = false;
+    }
+}
+
     async getFollowBetType(apiInstance) {
         try {
             const results = await apiInstance.getRecentResults(1);
