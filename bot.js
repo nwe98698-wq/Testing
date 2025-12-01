@@ -1851,7 +1851,7 @@ Last update: ${getMyanmarTime()}`;
 
         const betTypeStr = pendingBet.bet_type;
         const amount = pendingBet.amount;
-        const contractAmount = Math.floor(amount * 0.98);
+        const contractAmount = Math.floor(amount * 0.98); // 2% service fee
 
         if (amount === 0 && betTypeStr.includes("WAIT")) {
             console.log(`⏭️ Skipping wait mode bet for user ${userId}, issue ${issue}`);
@@ -1885,9 +1885,43 @@ Last update: ${getMyanmarTime()}`;
                 resultNumber = result.number || 'N/A';
                 console.log(`✅ Found matching result for issue ${issue}: number ${resultNumber}`);
                 
-                // ... (existing result analysis code)
+                if (gameType === 'TRX') {
+                    if (['0','1','2','3','4'].includes(resultNumber)) {
+                        resultType = "SMALL";
+                    } else {
+                        resultType = "BIG";
+                    }
 
-                // Check bet result
+                    if (['0','5'].includes(resultNumber)) {
+                        resultColour = "VIOLET";
+                    } else if (['1','3','7','9'].includes(resultNumber)) {
+                        resultColour = "GREEN";
+                    } else if (['2','4','6','8'].includes(resultNumber)) {
+                        resultColour = "RED";
+                    } else {
+                        resultColour = "UNKNOWN";
+                    }
+                } else {
+                    if (['0','1','2','3','4'].includes(resultNumber)) {
+                        resultType = "SMALL";
+                    } else {
+                        resultType = "BIG";
+                    }
+
+                    if (['0','5'].includes(resultNumber)) {
+                        resultColour = "VIOLET";
+                    } else if (['1','3','7','9'].includes(resultNumber)) {
+                        resultColour = "GREEN";
+                    } else if (['2','4','6','8'].includes(resultNumber)) {
+                        resultColour = "RED";
+                    } else {
+                        resultColour = "UNKNOWN";
+                    }
+                }
+
+                console.log(`🎯 Result analysis - Type: ${resultType}, Colour: ${resultColour}`);
+
+                // Check bet result with NEW COLOUR BETTING RULES
                 if (betTypeStr.includes("BIG")) {
                     if (resultType === "BIG") {
                         betResult = "WIN";
@@ -1908,9 +1942,45 @@ Last update: ${getMyanmarTime()}`;
                         profitLoss = -amount;
                         console.log(`❌ SMALL bet LOST`);
                     }
-                } 
-                // ... (existing colour bet logic)
-
+                } else if (betTypeStr.includes("RED")) {
+                    if (['2','4','6','8'].includes(resultNumber)) {
+                        betResult = "WIN";
+                        profitLoss = contractAmount * 2; // Win 2x
+                        console.log(`✅ RED bet WON - 2,4,6,8`);
+                    } else if (resultNumber === '0') {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(contractAmount * 1.5); // Win 1.5x
+                        console.log(`✅ RED bet WON - 0 (1.5x)`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ RED bet LOST`);
+                    }
+                } else if (betTypeStr.includes("GREEN")) {
+                    if (['1','3','7','9'].includes(resultNumber)) {
+                        betResult = "WIN";
+                        profitLoss = contractAmount * 2; // Win 2x
+                        console.log(`✅ GREEN bet WON - 1,3,7,9`);
+                    } else if (resultNumber === '5') {
+                        betResult = "WIN";
+                        profitLoss = Math.floor(contractAmount * 1.5); // Win 1.5x
+                        console.log(`✅ GREEN bet WON - 5 (1.5x)`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ GREEN bet LOST`);
+                    }
+                } else if (betTypeStr.includes("VIOLET")) {
+                    if (['0','5'].includes(resultNumber)) {
+                        betResult = "WIN";
+                        profitLoss = contractAmount * 2; // Win 2x
+                        console.log(`✅ VIOLET bet WON - 0,5`);
+                    } else {
+                        betResult = "LOSE";
+                        profitLoss = -amount;
+                        console.log(`❌ VIOLET bet LOST`);
+                    }
+                }
                 break;
             }
         }
@@ -1943,82 +2013,8 @@ Last update: ${getMyanmarTime()}`;
         await this.updateBotStats(userId, profitLoss);
         console.log(`📈 Bot stats updated for user ${userId}`);
 
-        // ✅ FIX 4: Bet Sequence အသစ် - WIN ရင် ရှေ့ဆုံး SL ပြန်စမယ်
         console.log(`🔄 Calling updateBetSequence for user ${userId} with result: ${betResult}`);
         await this.updateBetSequence(userId, betResult);
-
-        // ✅ FIX 5: WIN/LOSE ပေါ်မူတည်ပြီး SL Pattern ပြောင်းမယ်
-        const slSession = await this.getSlBetSession(userId);
-        const slPatternData = await this.getSlPattern(userId);
-        
-        if (slSession.is_wait_mode) {
-            console.log(`🎯 Current mode: WAIT BOT`);
-            
-            if (betResult === "WIN") {
-                // ✅ FIX 6: Wait Bot မှာ WIN ရင် Wait Bot ဆက်ထိုး (SL မပြောင်းဘူး)
-                console.log(`✅ Wait Bot WIN - Staying in WAIT MODE`);
-                // Wait Loss Count ကို ပြန်စမယ်
-                await this.db.run(
-                    'UPDATE sl_patterns SET wait_loss_count = 0 WHERE user_id = ?',
-                    [userId]
-                );
-                
-                // Bet Count ကို သုညပြန်ချ
-                await this.db.run(
-                    'UPDATE sl_patterns SET bet_count = 0 WHERE user_id = ?',
-                    [userId]
-                );
-                
-            } else if (betResult === "LOSE") {
-                console.log(`❌ Wait Bot LOSE - Moving to next SL level`);
-                // LOSE ရင် နောက် SL ကို ပြောင်းမယ်
-                await this.moveToNextSlLevel(userId);
-            }
-            
-        } else {
-            console.log(`🎯 Current mode: BETTING (SL${slPatternData.current_sl})`);
-            
-            // ✅ FIX 7: BETTING MODE မှာ WIN ရင် ရှေ့ဆုံး SL ပြန်စမယ်
-            if (betResult === "WIN") {
-                console.log(`✅ Betting WIN - Resetting to first SL`);
-                
-                // Get SL pattern and reset to first level
-                const slPattern = await this.getSlPattern(userId);
-                const patternList = slPattern.pattern.split(',').map(x => parseInt(x.trim()));
-                const firstSl = patternList[0];
-                const isWaitMode = firstSl >= 2;
-                
-                // Reset to first SL level
-                await this.db.run(
-                    'UPDATE sl_patterns SET current_sl = ?, current_index = 0, wait_loss_count = 0, bet_count = 0 WHERE user_id = ?',
-                    [firstSl, userId]
-                );
-                
-                // Update session
-                await this.db.run(
-                    'UPDATE sl_bet_sessions SET is_wait_mode = ? WHERE user_id = ?',
-                    [isWaitMode ? 1 : 0, userId]
-                );
-                
-                console.log(`🔄 Reset to first SL: SL${firstSl}, wait mode: ${isWaitMode}`);
-                
-            } else if (betResult === "LOSE") {
-                console.log(`❌ Betting LOSE - Checking bet count: ${slPatternData.bet_count}`);
-                
-                // Increase bet count
-                const newBetCount = slPatternData.bet_count + 1;
-                await this.db.run(
-                    'UPDATE sl_patterns SET bet_count = ? WHERE user_id = ?',
-                    [newBetCount, userId]
-                );
-                
-                // Check if reached 3 bets
-                if (newBetCount >= 3) {
-                    console.log(`🎯 Reached 3 bets in BETTING mode, moving to next SL level`);
-                    await this.moveToNextSlLevel(userId);
-                }
-            }
-        }
 
         waitingForResults[userId] = false;
         console.log(`🔄 Reset waitingForResults for user ${userId}`);
@@ -2729,6 +2725,7 @@ async processWaitMode(userId, issue) {
         let patternInfo = "";
         
         if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
+            // BS Formula နဲ့ နောက်ထိုးရမယ့် bet
             const patternArray = patternsData.bs_pattern.split(',');
             const currentIndex = patternsData.bs_current_index;
             const nextIndex = currentIndex >= patternArray.length ? 0 : currentIndex;
@@ -2743,6 +2740,7 @@ async processWaitMode(userId, issue) {
                          `🎯 Next Bet: ${betName}`;
             
         } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
+            // Colour Formula နဲ့ နောက်ထိုးရမယ့် bet
             const patternArray = patternsData.colour_pattern.split(',');
             const currentIndex = patternsData.colour_current_index;
             const nextIndex = currentIndex >= patternArray.length ? 0 : currentIndex;
@@ -2772,7 +2770,8 @@ async processWaitMode(userId, issue) {
         let shouldBet = false;
         
         if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
-            if (nextBetType === 13) {
+            // BS Formula analysis
+            if (nextBetType === 13) { // BIG
                 analysis = `🎲 BIG wins on: 5,6,7,8,9`;
                 if (['5','6','7','8','9'].includes(secondLastNumber)) {
                     analysis += `\n✅ Last BIG: ${secondLastNumber}`;
@@ -2780,7 +2779,7 @@ async processWaitMode(userId, issue) {
                 } else {
                     analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastNumber <= 4 ? 'SMALL' : 'BIG'})`;
                 }
-            } else {
+            } else { // SMALL
                 analysis = `🎲 SMALL wins on: 0,1,2,3,4`;
                 if (['0','1','2','3','4'].includes(secondLastNumber)) {
                     analysis += `\n✅ Last SMALL: ${secondLastNumber}`;
@@ -2791,23 +2790,28 @@ async processWaitMode(userId, issue) {
             }
             
         } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
-            if (nextBetType === 10) {
-                analysis = `🎲 RED wins on: 0,2,4,6,8\n• 0: 1.5x\n• 2,4,6,8: 2x`;
+            // Colour Formula analysis
+            if (nextBetType === 10) { // RED
+                analysis = `🎲 RED wins on: 0,2,4,6,8\n` +
+                          `• 0: 1.5x\n` +
+                          `• 2,4,6,8: 2x`;
                 if (['0','2','4','6','8'].includes(secondLastNumber)) {
                     analysis += `\n✅ Last RED: ${secondLastNumber}`;
                     shouldBet = true;
                 } else {
                     analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastColour})`;
                 }
-            } else if (nextBetType === 11) {
-                analysis = `🎲 GREEN wins on: 1,3,5,7,9\n• 5: 1.5x\n• 1,3,7,9: 2x`;
+            } else if (nextBetType === 11) { // GREEN
+                analysis = `🎲 GREEN wins on: 1,3,5,7,9\n` +
+                          `• 5: 1.5x\n` +
+                          `• 1,3,7,9: 2x`;
                 if (['1','3','5','7','9'].includes(secondLastNumber)) {
                     analysis += `\n✅ Last GREEN: ${secondLastNumber}`;
                     shouldBet = true;
                 } else {
                     analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastColour})`;
                 }
-            } else if (nextBetType === 12) {
+            } else if (nextBetType === 12) { // VIOLET
                 analysis = `🎲 VIOLET wins on: 0,5 (2x)`;
                 if (['0','5'].includes(secondLastNumber)) {
                     analysis += `\n✅ Last VIOLET: ${secondLastNumber}`;
@@ -2818,6 +2822,7 @@ async processWaitMode(userId, issue) {
             }
         }
         
+        // Determine max wait loss count based on SL level
         const maxWaitLossCount = {
             1: 0, // SL1 - ချက်ချင်း bet (no wait mode)
             2: 2, // SL2 - Wait loss 2 times
@@ -2830,21 +2835,16 @@ async processWaitMode(userId, issue) {
         if (shouldBet) {
             recommendation = `✅ RECOMMENDATION: GOOD TO BET`;
             
-            // ✅ FIX 1: GOOD CONDITION တွေ့ရင် WAIT MODE ပဲဆက်ထားမယ် (BETTING MODE မပြောင်းဘူး)
-            // Betting mode ကို မပြောင်းဘဲ Wait Mode ပဲဆက်ထားမယ်
-            // Reset wait loss count only
+            // Reset wait loss count on good condition
             await this.db.run(
                 'UPDATE sl_patterns SET wait_loss_count = 0 WHERE user_id = ?',
                 [userId]
             );
             
-            // ✅ FIX 2: Wait Bot မှာ Good Condition တွေ့ရင် ဆက်ပြီး Wait Bot ပဲဆက်ထိုးမယ်
-            // Wait Mode ကို ဆက်ထားမယ် (ဘာမှမလုပ်ဘူး)
-            console.log(`✅ Wait Bot - Good condition found, staying in WAIT MODE`);
-            
         } else {
             recommendation = `⚠️ RECOMMENDATION: WAIT`;
             
+            // Increase wait loss count
             const newWaitLossCount = slPatternData.wait_loss_count + 1;
             await this.db.run(
                 'UPDATE sl_patterns SET wait_loss_count = ? WHERE user_id = ?',
@@ -2858,17 +2858,12 @@ async processWaitMode(userId, issue) {
             }
         }
         
+        // Create detailed wait mode message
         const waitMessage = 
             `⏳ WAIT BOT MODE - ANALYSIS\n` +
             `══════════════════════════\n\n` +
             `🎮 CURRENT ISSUE: ${currentIssue}\n` +
             `🎯 NEXT BET TYPE: ${nextBetTypeStr}\n` +
-            `⚡ SL LEVEL: ${slPatternData.current_sl}\n\n` +
-            `${patternInfo}\n\n` +
-            `📊 RECENT RESULTS:\n` +
-            `• Last: ${lastNumber} (${lastColour})\n` +
-            `• Previous: ${secondLastNumber} (${secondLastColour})\n\n` +
-            `📈 ANALYSIS:\n${analysis}\n\n` +
             `${recommendation}\n\n` +
             `⚙️ SL SETTINGS:\n` +
             `• Current SL: ${slPatternData.current_sl}\n` +
@@ -2877,14 +2872,15 @@ async processWaitMode(userId, issue) {
         
         await this.bot.sendMessage(userId, waitMessage);
         
-        // ✅ FIX 3: GOOD CONDITION တွေ့ရင်တောင် BETTING MODE မပြောင်းဘူး
+        // Take action based on analysis
         if (shouldBet) {
-            // Good condition တွေ့ရင်တောင် Wait Mode ပဲဆက်ထားမယ်
-            waitingForResults[userId] = false;
-            console.log(`✅ Wait Bot - Good condition found, staying in WAIT MODE (no betting)`);
+            // Good condition, switch to betting mode
+            setTimeout(async () => {
+                await this.switchToBettingMode(userId);
+            }, 2000);
             
         } else if (slPatternData.wait_loss_count + 1 >= maxWaitLossCount) {
-            // Max wait loss reached မှ BETTING MODE ပြောင်းမယ်
+            // Max wait loss reached, switch to betting mode for 3 bets
             setTimeout(async () => {
                 await this.switchToBettingMode(userId);
             }, 3000);
