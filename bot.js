@@ -59,6 +59,53 @@ class Database {
         this.db = new sqlite3.Database(DB_NAME);
         this.initDatabase();
     }
+    
+    async saveSlPattern(userId, pattern, currentSl = 1, currentIndex = 0, waitLossCount = 0, betCount = 0) {
+    try {
+        const existing = await this.db.get('SELECT user_id FROM sl_patterns WHERE user_id = ?', [userId]);
+        
+        if (existing) {
+            await this.db.run(
+                'UPDATE sl_patterns SET pattern = ?, current_sl = ?, current_index = ?, wait_loss_count = ?, bet_count = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+                [pattern, currentSl, currentIndex, waitLossCount, betCount, userId]
+            );
+        } else {
+            await this.db.run(
+                'INSERT INTO sl_patterns (user_id, pattern, current_sl, current_index, wait_loss_count, bet_count) VALUES (?, ?, ?, ?, ?, ?)',
+                [userId, pattern, currentSl, currentIndex, waitLossCount, betCount]
+            );
+        }
+        return true;
+    } catch (error) {
+        console.error(`Error saving SL pattern for user ${userId}:`, error);
+        return false;
+    }
+}
+async updateSlPatternState(userId, currentSl, currentIndex, waitLossCount, betCount) {
+    try {
+        await this.db.run(
+            'UPDATE sl_patterns SET current_sl = ?, current_index = ?, wait_loss_count = ?, bet_count = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [currentSl, currentIndex, waitLossCount, betCount, userId]
+        );
+        return true;
+    } catch (error) {
+        console.error(`Error updating SL pattern state for user ${userId}:`, error);
+        return false;
+    }
+}
+
+async resetSlPattern(userId) {
+    try {
+        await this.db.run(
+            'UPDATE sl_patterns SET pattern = "", current_sl = 1, current_index = 0, wait_loss_count = 0, bet_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [userId]
+        );
+        return true;
+    } catch (error) {
+        console.error(`Error resetting SL pattern for user ${userId}:`, error);
+        return false;
+    }
+}
 
     initDatabase() {
         const tables = [
@@ -1543,142 +1590,41 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async handleResults(chatId, userId) {
-    const userSession = this.ensureUserSession(userId);
-    const platformName = '777 Big Win';
-    const gameType = userSession.gameType || 'WINGO';
+        const userSession = this.ensureUserSession(userId);
+        const platformName = '777 Big Win';
+        const gameType = userSession.gameType || 'WINGO';
 
-    try {
-        let results;
-        if (userSession.apiInstance) {
-            results = await userSession.apiInstance.getRecentResults(10);
-        } else {
-            const api = new LotteryAPI(userSession.platform || '777', gameType);
-            results = await api.getRecentResults(10);
-        }
-
-        if (!results || results.length === 0) {
-            await this.bot.sendMessage(chatId, "No recent results available.");
-            return;
-        }
-
-        let resultsText = `Recent Game Results - ${platformName} (${gameType})\n\n`;
-        results.forEach((result, i) => {
-            const issueNo = result.issueNumber || 'N/A';
-            const number = result.number || 'N/A';
-            const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
-            const colour = result.colour || 'UNKNOWN';
-
-            resultsText += `${i+1}. ${issueNo} - ${number} - ${resultType} ${colour}\n`;
-        });
-
-        resultsText += `\nLast updated: ${getMyanmarTime()}`;
-
-        await this.bot.sendMessage(chatId, resultsText);
-    } catch (error) {
-        await this.bot.sendMessage(chatId, `Error getting results: ${error.message}`);
-    }
-}
-
-// TRX Game အတွက် Recent Results ကောက်ယူခြင်း
-async getRecentResults(count = 10) {
-    try {
-        if (this.gameType === 'TRX') {
-            const body = {
-                "typeId": 13,
-                "language": 0,
-                "random": "b05034ba4a2642009350ee863f29e2e9",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
-
-            const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    const settled = result.data?.settled;
-                    if (settled) {
-                        const number = String(settled.number || '');
-                        let colour = 'UNKNOWN';
-                        if (['0', '5'].includes(number)) {
-                            colour = 'VIOLET';
-                        } else if (['1', '3', '7', '9'].includes(number)) {
-                            colour = 'GREEN';
-                        } else if (['2', '4', '6', '8'].includes(number)) {
-                            colour = 'RED';
-                        }
-                        
-                        return [{
-                            issueNumber: settled.issueNumber,
-                            number: number,
-                            colour: colour
-                        }];
-                    }
-                }
-            }
-        } else {
-            // WINGO အတွက် results ကောက်ယူခြင်း
-            let typeId;
-            if (this.gameType === 'WINGO_3MIN') {
-                typeId = 2;
+        try {
+            let results;
+            if (userSession.apiInstance) {
+                results = await userSession.apiInstance.getRecentResults(10);
             } else {
-                typeId = 1;
+                const api = new LotteryAPI(userSession.platform || '777', gameType);
+                results = await api.getRecentResults(10);
             }
-            
-            const body = {
-                "pageNo": 1,
-                "pageSize": count,
-                "language": 0,
-                "typeId": typeId,
-                "random": "6DEB0766860C42151A193692ED16D65A",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
 
-            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                headers: this.headers,
-                timeout: 10000
+            if (!results || results.length === 0) {
+                await this.bot.sendMessage(chatId, "No recent results available.");
+                return;
+            }
+
+            let resultsText = `Recent Game Results - ${platformName} (${gameType})\n\n`;
+            results.forEach((result, i) => {
+                const issueNo = result.issueNumber || 'N/A';
+                const number = result.number || 'N/A';
+                const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
+                const colour = result.colour || 'UNKNOWN';
+
+                resultsText += `${i+1}. ${issueNo} - ${number} - ${resultType} ${colour}\n`;
             });
 
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    const dataStr = JSON.stringify(response.data);
-                    const startIdx = dataStr.indexOf('[');
-                    const endIdx = dataStr.indexOf(']') + 1;
-                    
-                    if (startIdx !== -1 && endIdx !== -1) {
-                        const resultsJson = dataStr.substring(startIdx, endIdx);
-                        const results = JSON.parse(resultsJson);
-                        
-                        results.forEach(resultItem => {
-                            const number = String(resultItem.number || '');
-                            if (['0', '5'].includes(number)) {
-                                resultItem.colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                resultItem.colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                resultItem.colour = 'RED';
-                            } else {
-                                resultItem.colour = 'UNKNOWN';
-                            }
-                        });
-                        
-                        return results;
-                    }
-                }
-            }
-        }
-        return [];
-    } catch (error) {
-        console.error('Error getting recent results:', error.message);
-        return [];
-    }
-}
+            resultsText += `\nLast updated: ${getMyanmarTime()}`;
 
+            await this.bot.sendMessage(chatId, resultsText);
+        } catch (error) {
+            await this.bot.sendMessage(chatId, `Error getting results: ${error.message}`);
+        }
+    }
 
     async placeBetHandler(chatId, userId, betType) {
         const userSession = this.ensureUserSession(userId);
@@ -3314,8 +3260,33 @@ Choose your betting mode:`;
     }
 
     async showSlStats(chatId, userId) {
-        await this.bot.sendMessage(chatId, "SL Stats feature will be implemented soon.");
+    try {
+        const slPatternData = await this.db.getSlPattern(userId);
+        const pattern = slPatternData.pattern;
+        
+        if (!pattern || pattern === '1,2,3,4,5') {
+            await this.bot.sendMessage(chatId, "❌ No SL Pattern Set!\n\nPlease set an SL pattern first to view statistics.");
+            return;
+        }
+
+        const patternArray = pattern.split(',').map(p => parseInt(p.trim()));
+        const currentSl = slPatternData.current_sl;
+        const currentIndex = slPatternData.current_index;
+        const waitLossCount = slPatternData.wait_loss_count;
+        const betCount = slPatternData.bet_count;
+        
+        const totalSteps = patternArray.length;
+        const progress = Math.round(((currentIndex + 1) / totalSteps) * 100);
+        
+        const statsText = `📈 SL Layer Statistics\n\n🎯 Pattern: ${pattern}\n📊 Progress: ${currentIndex + 1}/${totalSteps} (${progress}%)\n\nCurrent State:\n- 🎯 Current SL Level: ${currentSl}\n- 🚀 Current Mode: ${currentSl === 1 ? "BETTING" : "WAIT BOT"}\n- ⏳ Wait Loss Count: ${waitLossCount}/2\n- 🎰 Bet Count: ${betCount}/3\n\nNext Actions:\n${currentSl === 1 ? "• Place bet according to BS/Colour pattern\n• After 3 bets, move to next SL level" : "• Wait for 2 consecutive losses\n• Then move to next SL level"}`;
+
+        await this.bot.sendMessage(chatId, statsText);
+        
+    } catch (error) {
+        console.error(`Error showing SL stats for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error loading SL statistics. Please try again.");
     }
+}
 
     async handleSetBetSequence(chatId, userId, text) {
     try {
@@ -3567,14 +3538,85 @@ Choose your betting mode:`;
     }
 
     async handleSetSlPattern(chatId, userId, text) {
-        await this.bot.sendMessage(chatId, "Set SL pattern feature will be implemented soon.", {
-            reply_markup: this.getMainKeyboard()
-        });
-    }
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        const pattern = text.trim();
+        const validPattern = /^[1-5,]+$/.test(pattern);
+        
+        if (!validPattern || pattern.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ Invalid SL Pattern!\n\nPlease use ONLY numbers 1-5 separated by commas.\n\nExamples:\n• 2,1,3 (Starts from SL 2 with WAIT BOT)\n• 2,1 (Starts from SL 2 with WAIT BOT)\n• 1,2,3 (Starts from SL 1 with BETTING)");
+            return;
+        }
 
-    async resetSlPattern(chatId, userId) {
-        await this.bot.sendMessage(chatId, "Reset SL pattern feature will be implemented soon.");
+        const patternArray = pattern.split(',').map(p => parseInt(p.trim())).filter(p => p >= 1 && p <= 5);
+        
+        if (patternArray.length === 0) {
+            await this.bot.sendMessage(chatId, "❌ Invalid SL Pattern!\n\nPattern must contain at least one number between 1-5.");
+            return;
+        }
+
+        const cleanPattern = patternArray.join(',');
+        const firstSl = patternArray[0];
+
+        await this.db.saveSlPattern(userId, cleanPattern, firstSl, 0, 0, 0);
+
+        const startMode = firstSl === 1 ? "BETTING" : "WAIT BOT";
+        
+        const successMessage = `✅ SL Pattern Set Successfully!\n\n🎯 Pattern: ${cleanPattern}\n📊 Length: ${patternArray.length} steps\n🔢 Starting SL: ${firstSl}\n🚀 Start Mode: ${startMode}\n\n🤖 SL Layer is now ready for activation!`;
+
+        await this.bot.sendMessage(chatId, successMessage, {
+            reply_markup: this.getSlLayerKeyboard()
+        });
+        
+        userSession.step = 'main';
+        
+    } catch (error) {
+        console.error(`Error setting SL pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error setting SL pattern.\n\nPlease try again.");
     }
+}
+
+    async viewSlPattern(chatId, userId) {
+    try {
+        const slPatternData = await this.db.getSlPattern(userId);
+        const pattern = slPatternData.pattern;
+        
+        if (!pattern || pattern === '1,2,3,4,5') {
+            await this.bot.sendMessage(chatId, "❌ No SL Pattern Set!\n\nPlease set an SL pattern first using 'Set SL Pattern'.");
+            return;
+        }
+
+        const patternArray = pattern.split(',').map(p => parseInt(p.trim()));
+        const currentSl = slPatternData.current_sl;
+        const currentIndex = slPatternData.current_index;
+        const waitLossCount = slPatternData.wait_loss_count;
+        const betCount = slPatternData.bet_count;
+        
+        let patternDisplay = "";
+        patternArray.forEach((sl, index) => {
+            if (index === currentIndex) {
+                patternDisplay += `▶️ SL${sl}`;
+            } else {
+                patternDisplay += `SL${sl}`;
+            }
+            if (index < patternArray.length - 1) {
+                patternDisplay += " → ";
+            }
+        });
+
+        const currentMode = currentSl === 1 ? "BETTING" : "WAIT BOT";
+        const nextAction = currentSl === 1 ? "Place Bet" : "Wait for Loss";
+
+        const patternInfo = `📊 Current SL Pattern\n\n🎯 Pattern: ${patternDisplay}\n📏 Total Steps: ${patternArray.length}\n🔢 Current Step: ${currentIndex + 1}\n\nCurrent State:\n- 🎯 Current SL: ${currentSl}\n- 🚀 Mode: ${currentMode}\n- ⏳ Wait Loss Count: ${waitLossCount}/2\n- 🎰 Bet Count: ${betCount}/3\n- ➡️ Next Action: ${nextAction}`;
+
+        await this.bot.sendMessage(chatId, patternInfo);
+        
+    } catch (error) {
+        console.error(`Error viewing SL pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error viewing SL pattern. Please try again.");
+    }
+}
 
     async clearBsPattern(chatId, userId) {
         try {
@@ -3590,6 +3632,20 @@ Choose your betting mode:`;
             await this.bot.sendMessage(chatId, "❌ Error clearing BS pattern. Please try again.");
         }
     }
+    
+    async resetSlPattern(chatId, userId) {
+    try {
+        await this.db.resetSlPattern(userId);
+        
+        await this.bot.sendMessage(chatId, "✅ SL Pattern Reset Successfully!\n\nAll SL pattern data has been cleared.", {
+            reply_markup: this.getSlLayerKeyboard()
+        });
+        
+    } catch (error) {
+        console.error(`Error resetting SL pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error resetting SL pattern. Please try again.");
+    }
+}
 
     async clearColourPattern(chatId, userId) {
         try {
