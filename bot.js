@@ -2009,74 +2009,80 @@ Last update: ${getMyanmarTime()}`;
         );
         console.log(`🗑️ Pending bet removed for user ${userId}`);
 
-        // Update bot stats
-        await this.updateBotStats(userId, profitLoss);
-        console.log(`📈 Bot stats updated for user ${userId}`);
+        // Get current bot session for total profit
+        const botSession = await this.getBotSession(userId);
+        const totalProfitBefore = botSession.total_profit || 0;
+        const newTotalProfit = totalProfitBefore + profitLoss;
+
+        // Update bot stats with new total profit
+        await this.updateBotStats(userId, profitLoss, newTotalProfit);
+        console.log(`📈 Bot stats updated for user ${userId}, new total profit: ${newTotalProfit}`);
 
         console.log(`🔄 Calling updateBetSequence for user ${userId} with result: ${betResult}`);
         await this.updateBetSequence(userId, betResult);
 
-  // ✅ NEW: Check if this is an SL Layer bet and handle Win/Lose accordingly
-if (betTypeStr.includes("SL")) {
-    console.log(`⚡ SL Layer bet detected for user ${userId}, result: ${betResult}`);
-    
-    const slPatternData = await this.getSlPattern(userId);
-    const slSession = await this.getSlBetSession(userId);
-    
-    if (slSession.is_wait_mode === 0) { // Only for REAL betting mode (not wait mode)
-        console.log(`📊 SL Layer in REAL betting mode, current bet count: ${slPatternData.bet_count}`);
-        
-        if (betResult === "WIN") {
-            console.log(`🎯 REAL BETTING WIN - Moving to next SL level (back to WAIT mode)`);
+        // ✅ NEW: Check if this is an SL Layer bet and handle Win/Lose accordingly
+        if (betTypeStr.includes("SL")) {
+            console.log(`⚡ SL Layer bet detected for user ${userId}, result: ${betResult}`);
             
-            // ✅ IMPORTANT: Betting မှာ Win ရရင် SL2 Wait Bot ကို ပြန်စမယ်
-            // လက်ရှိ pattern ကို ကြည့်ပြီး နောက် SL level ကို ဆုံးဖြတ်မယ်
-            const patternList = slPatternData.pattern.split(',').map(x => parseInt(x.trim()));
-            let nextIndex = slPatternData.current_index + 1;
+            const slPatternData = await this.getSlPattern(userId);
+            const slSession = await this.getSlBetSession(userId);
             
-            if (nextIndex >= patternList.length) {
-                nextIndex = 0; // Reset to first level
-            }
-            
-            const nextSl = patternList[nextIndex];
-            
-            // ✅ Win ရရင် လက်ရှိ betting mode ကို ရပ်ပြီး WAIT mode ပြန်သွားမယ်
-            // ဒါပေမယ့် လက်ရှိ SL level ကိုတော့ ဆက်သုံးမယ်
-            if (slPatternData.current_sl >= 2) {
-                // လက်ရှိ SL က 2 သို့မဟုတ် ထို့ထက်များရင် WAIT mode ပြန်သွား
-                await this.switchToWaitMode(userId);
+            if (slSession.is_wait_mode === 0) { // Only for REAL betting mode (not wait mode)
+                console.log(`📊 SL Layer in REAL betting mode, current bet count: ${slPatternData.bet_count}`);
+                
+                if (betResult === "WIN") {
+                    console.log(`🎯 REAL BETTING WIN - Moving to next SL level (back to WAIT mode)`);
+                    
+                    // ✅ IMPORTANT: Betting မှာ Win ရရင် SL2 Wait Bot ကို ပြန်စမယ်
+                    // လက်ရှိ pattern ကို ကြည့်ပြီး နောက် SL level ကို ဆုံးဖြတ်မယ်
+                    const patternList = slPatternData.pattern.split(',').map(x => parseInt(x.trim()));
+                    let nextIndex = slPatternData.current_index + 1;
+                    
+                    if (nextIndex >= patternList.length) {
+                        nextIndex = 0; // Reset to first level
+                    }
+                    
+                    const nextSl = patternList[nextIndex];
+                    
+                    // ✅ Win ရရင် လက်ရှိ betting mode ကို ရပ်ပြီး WAIT mode ပြန်သွားမယ်
+                    // ဒါပေမယ့် လက်ရှိ SL level ကိုတော့ ဆက်သုံးမယ်
+                    if (slPatternData.current_sl >= 2) {
+                        // လက်ရှိ SL က 2 သို့မဟုတ် ထို့ထက်များရင် WAIT mode ပြန်သွား
+                        await this.switchToWaitMode(userId);
+                    } else {
+                        // လက်ရှိ SL က 1 ဆိုရင် နောက် level ကို သွားမယ်
+                        await this.moveToNextSlLevel(userId);
+                    }
+                    
+                } else if (betResult === "LOSE") {
+                    console.log(`📈 SL Layer LOSE - Checking bet count: ${slPatternData.bet_count}`);
+                    
+                    // Bet count update ကို ဒီမှာ လုပ်မယ်
+                    const newBetCount = slPatternData.bet_count + 1;
+                    await this.db.run(
+                        'UPDATE sl_patterns SET bet_count = ? WHERE user_id = ?',
+                        [newBetCount, userId]
+                    );
+                    console.log(`📈 Updated bet count to: ${newBetCount}/3`);
+                    
+                    if (newBetCount >= 3) {
+                        console.log(`✅ Reached 3 bets in SL${slPatternData.current_sl} - Moving to next level`);
+                        await this.moveToNextSlLevel(userId);
+                    }
+                }
             } else {
-                // လက်ရှိ SL က 1 ဆိုရင် နောက် level ကို သွားမယ်
-                await this.moveToNextSlLevel(userId);
-            }
-            
-        } else if (betResult === "LOSE") {
-            console.log(`📈 SL Layer LOSE - Checking bet count: ${slPatternData.bet_count}`);
-            
-            // Bet count update ကို ဒီမှာ လုပ်မယ်
-            const newBetCount = slPatternData.bet_count + 1;
-            await this.db.run(
-                'UPDATE sl_patterns SET bet_count = ? WHERE user_id = ?',
-                [newBetCount, userId]
-            );
-            console.log(`📈 Updated bet count to: ${newBetCount}/3`);
-            
-            if (newBetCount >= 3) {
-                console.log(`✅ Reached 3 bets in SL${slPatternData.current_sl} - Moving to next level`);
-                await this.moveToNextSlLevel(userId);
+                // WAIT MODE မှာ Win/Lose စစ်စရာမလိုဘူး (ဘာလို့လဲဆိုတော့ wait mode မှာ bet မထိုးဘူး)
+                console.log(`⏳ Wait mode - no real bet placed, ignoring result`);
             }
         }
-    } else {
-        // WAIT MODE မှာ Win/Lose စစ်စရာမလိုဘူး (ဘာလို့လဲဆိုတော့ wait mode မှာ bet မထိုးဘူး)
-        console.log(`⏳ Wait mode - no real bet placed, ignoring result`);
-    }
-}
 
         waitingForResults[userId] = false;
         console.log(`🔄 Reset waitingForResults for user ${userId}`);
 
         console.log(`📤 Sending result message to user ${userId}`);
-        await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour);
+        // ✅ Send result message with total profit
+        await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour, newTotalProfit);
 
         console.log(`✅ Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
         
@@ -2086,81 +2092,101 @@ if (betTypeStr.includes("SL")) {
     }
 }
 
-    async sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour) {
-        try {
-            const userSession = userSessions[userId];
-            if (!userSession) {
-                console.log(`❌ No user session for sending message to ${userId}`);
-                return;
+    async sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour, totalProfit = 0) {
+    try {
+        const userSession = userSessions[userId];
+        if (!userSession) {
+            console.log(`❌ No user session for sending message to ${userId}`);
+            return;
+        }
+
+        const chatId = userId;
+        const gameType = userSession.gameType || 'WINGO';
+
+        let message = "";
+        let emoji = "";
+        
+        // Check if this is a Wait Bot mode
+        const isWaitMode = betTypeStr.includes("WAIT") || betTypeStr.includes("SL") && (await this.getSlBetSession(userId)).is_wait_mode;
+        const isSlBet = betTypeStr.includes("SL");
+
+        if (betResult === "WIN") {
+            emoji = "🎉";
+            message = `${emoji} WIN! ${emoji}\n\n`;
+            message += `✅ Your Bet: ${betTypeStr}\n`;
+            message += `💰 Amount: ${amount.toLocaleString()} K\n`;
+            message += `💵 Profit: +${profitLoss.toLocaleString()} K\n`;
+            if (isWaitMode) {
+                message += `🤖 Wait Bot: WIN\n`;
             }
-
-            const chatId = userId;
-            const gameType = userSession.gameType || 'WINGO';
-
-            let message = "";
-            let emoji = "";
-
-            if (betResult === "WIN") {
-                emoji = "🎉";
-                message = `${emoji} WIN! ${emoji}\n\n`;
-                message += `✅ Your Bet: ${betTypeStr}\n`;
-                message += `💰 Amount: ${amount.toLocaleString()} K\n`;
-                message += `💵 Profit: +${profitLoss.toLocaleString()} K\n\n`;
-            } else {
-                emoji = "😢";
-                message = `${emoji} LOSE ${emoji}\n\n`;
-                message += `❌ Your Bet: ${betTypeStr}\n`;
-                message += `💸 Amount: ${amount.toLocaleString()} K\n`;
-                message += `📉 Loss: -${amount.toLocaleString()} K\n\n`;
+            if (isSlBet) {
+                message += `⚡ SL Layer: WIN\n`;
             }
-
-            message += `🎯 Result Details:\n`;
-            message += `• Issue: ${issue}\n`;
-            message += `• Number: ${resultNumber}\n`;
-            message += `• Type: ${resultType}\n`;
-            message += `• Colour: ${resultColour}\n`;
-            message += `• Game: ${gameType}\n\n`;
-
-            if (userSession.loggedIn && userSession.apiInstance) {
-                try {
-                    const currentBalance = await userSession.apiInstance.getBalance();
-                    message += `💳 Current Balance: ${currentBalance.toLocaleString()} K\n\n`;
-                    console.log(`💰 Balance retrieved: ${currentBalance} for user ${userId}`);
-                } catch (balanceError) {
-                    console.error(`❌ Error getting balance for result message:`, balanceError);
-                    message += `💳 Current Balance: Unable to check balance\n\n`;
-                }
+            // ✅ TOTAL PROFIT ထည့်ပါ
+            message += `📊 Total Profit: ${totalProfit.toLocaleString()} K\n\n`;
+        } else {
+            emoji = "😢";
+            message = `${emoji} LOSE ${emoji}\n\n`;
+            message += `❌ Your Bet: ${betTypeStr}\n`;
+            message += `💸 Amount: ${amount.toLocaleString()} K\n`;
+            message += `📉 Loss: -${amount.toLocaleString()} K\n`;
+            if (isWaitMode) {
+                message += `🤖 Wait Bot: LOSE\n`;
             }
-
-            message += `⏰ ${getMyanmarTime()}`;
-
-            console.log(`📨 Sending message to user ${userId}: ${message.substring(0, 100)}...`);
-            
-            await this.bot.sendMessage(chatId, message, { 
-                disable_notification: false
-            });
-            
-            console.log(`✅ Result message sent successfully to user ${userId}`);
-
-            if (amount > 0) {
-                await this.sendSequenceInfo(userId, chatId, betResult);
+            if (isSlBet) {
+                message += `⚡ SL Layer: LOSE\n`;
             }
+            // ✅ TOTAL PROFIT ထည့်ပါ (loss ရင် total profit ကိုလည်းပြ)
+            message += `📊 Total Profit: ${totalProfit.toLocaleString()} K\n\n`;
+        }
 
-        } catch (error) {
-            console.error(`💥 Error sending result message to user ${userId}:`, error);
-            
+        message += `🎯 Result Details:\n`;
+        message += `• Issue: ${issue}\n`;
+        message += `• Number: ${resultNumber}\n`;
+        message += `• Type: ${resultType}\n`;
+        message += `• Colour: ${resultColour}\n`;
+        message += `• Game: ${gameType}\n\n`;
+
+        if (userSession.loggedIn && userSession.apiInstance) {
             try {
-                const simpleMessage = betResult === "WIN" ? 
-                    `🎉 WIN! ${betTypeStr} bet on issue ${issue}. Profit: +${profitLoss}K` :
-                    `😢 LOSE! ${betTypeStr} bet on issue ${issue}. Loss: -${amount}K`;
-                    
-                await this.bot.sendMessage(userId, simpleMessage);
-                console.log(`✅ Simple message sent as fallback to user ${userId}`);
-            } catch (fallbackError) {
-                console.error(`💥 Even simple message failed for user ${userId}:`, fallbackError);
+                const currentBalance = await userSession.apiInstance.getBalance();
+                message += `💳 Current Balance: ${currentBalance.toLocaleString()} K\n\n`;
+                console.log(`💰 Balance retrieved: ${currentBalance} for user ${userId}`);
+            } catch (balanceError) {
+                console.error(`❌ Error getting balance for result message:`, balanceError);
+                message += `💳 Current Balance: Unable to check balance\n\n`;
             }
         }
+
+        message += `⏰ ${getMyanmarTime()}`;
+
+        console.log(`📨 Sending message to user ${userId}: ${message.substring(0, 100)}...`);
+        
+        await this.bot.sendMessage(chatId, message, { 
+            disable_notification: false
+        });
+        
+        console.log(`✅ Result message sent successfully to user ${userId}`);
+
+        if (amount > 0 && !isWaitMode) {
+            await this.sendSequenceInfo(userId, chatId, betResult);
+        }
+
+    } catch (error) {
+        console.error(`💥 Error sending result message to user ${userId}:`, error);
+        
+        try {
+            const simpleMessage = betResult === "WIN" ? 
+                `🎉 WIN! ${betTypeStr} bet on issue ${issue}. Profit: +${profitLoss}K | Total: ${totalProfit}K` :
+                `😢 LOSE! ${betTypeStr} bet on issue ${issue}. Loss: -${amount}K | Total: ${totalProfit}K`;
+                
+            await this.bot.sendMessage(userId, simpleMessage);
+            console.log(`✅ Simple message sent as fallback to user ${userId}`);
+        } catch (fallbackError) {
+            console.error(`💥 Even simple message failed for user ${userId}:`, fallbackError);
+        }
     }
+}
 
     async sendSequenceInfo(userId, chatId, betResult) {
     try {
@@ -2230,27 +2256,29 @@ if (betTypeStr.includes("SL")) {
     }
 }
 
-    async updateBotStats(userId, profit = 0) {
-        try {
-            const session = await this.getBotSession(userId);
-            const newTotalBets = session.total_bets + 1;
-            const newTotalProfit = session.total_profit + profit;
-            
-            let newSessionProfit = session.session_profit;
-            let newSessionLoss = session.session_loss;
-            
-            if (profit > 0) {
-                newSessionProfit += profit;
-            } else {
-                newSessionLoss += Math.abs(profit);
-            }
-            
-            await this.saveBotSession(userId, true, newTotalBets, newTotalProfit, newSessionProfit, newSessionLoss);
-            
-        } catch (error) {
-            console.error(`Error updating bot stats for user ${userId}:`, error);
+    async updateBotStats(userId, profit = 0, totalProfit = null) {
+    try {
+        const session = await this.getBotSession(userId);
+        const newTotalBets = session.total_bets + 1;
+        
+        // If totalProfit is provided, use it, otherwise calculate
+        const newTotalProfit = totalProfit !== null ? totalProfit : session.total_profit + profit;
+        
+        let newSessionProfit = session.session_profit;
+        let newSessionLoss = session.session_loss;
+        
+        if (profit > 0) {
+            newSessionProfit += profit;
+        } else {
+            newSessionLoss += Math.abs(profit);
         }
+        
+        await this.saveBotSession(userId, true, newTotalBets, newTotalProfit, newSessionProfit, newSessionLoss);
+        
+    } catch (error) {
+        console.error(`Error updating bot stats for user ${userId}:`, error);
     }
+}
 
    
 async runBot(chatId, userId) {
