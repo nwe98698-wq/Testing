@@ -2367,6 +2367,34 @@ async activateSlLayer(userId) {
     bettingLoop();
 }
 
+async placeSlLayerBet(userId, issue) {
+    try {
+        const userSession = userSessions[userId];
+        const slSession = await this.getSlBetSession(userId);
+        
+        console.log(`🎯 SL Layer betting for user ${userId}, issue: ${issue}, wait mode: ${slSession.is_wait_mode}`);
+        
+        if (slSession.is_wait_mode) {
+            // Wait mode - no real betting, just analysis
+            await this.processWaitMode(userId, issue);
+        } else {
+            // Real betting mode
+            await this.placeRealSlBet(userId, issue);
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error in placeSlLayerBet for user ${userId}:`, error);
+        waitingForResults[userId] = false;
+        
+        // Send error message to user
+        try {
+            await this.bot.sendMessage(userId, `❌ SL Layer Error\n\nError: ${error.message}\n\nPlease check your settings and try again.`);
+        } catch (sendError) {
+            console.error(`Failed to send error message to user ${userId}:`, sendError);
+        }
+    }
+}
+
     async placeAutoBet(userId, issue) {
     const userSession = userSessions[userId];
     if (!userSession || !userSession.loggedIn) {
