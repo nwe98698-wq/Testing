@@ -2761,7 +2761,7 @@ async processWaitMode(userId, issue) {
             return;
         }
         
-        // Get recent results
+        // Get recent results (လတ်တလော result 2 ခုယူမယ်)
         const results = await userSession.apiInstance.getRecentResults(2);
         if (!results || results.length < 2) {
             console.log(`❌ Not enough results for analysis`);
@@ -2769,20 +2769,20 @@ async processWaitMode(userId, issue) {
             return;
         }
 
-        const lastResult = results[0];
-        const secondLastResult = results[1] || lastResult;
+        // ✅ အရေးကြီး: results[0] = လတ်တလောအသစ်ဆုံး, results[1] = ယခင်က
+        const lastResult = results[0];      // လက်ရှိ issue
+        const secondLastResult = results[1] || lastResult;  // ယခင် issue
         
-        const lastNumber = lastResult.number || '';
-        const lastColour = lastResult.colour || '';
-        const secondLastNumber = secondLastResult.number || '';
-        const secondLastColour = secondLastResult.colour || '';
+        // ✅ သေချာစစ်ဆေးရန်
+        console.log(`🔍 Wait Mode Analysis - User ${userId}`);
+        console.log(`   Last Result: ${lastResult.number} (${lastResult.colour})`);
+        console.log(`   Second Last: ${secondLastResult.number} (${secondLastResult.colour})`);
         
         // Determine next bet type from formula
-        let nextBetType, nextBetTypeStr;
-        let patternInfo = "";
+        let nextBetType, nextBetTypeStr, patternStep;
         
         if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
-            // BS Formula နဲ့ နောက်ထိုးရမယ့် bet
+            // BS Formula analysis
             const patternArray = patternsData.bs_pattern.split(',');
             const currentIndex = patternsData.bs_current_index;
             const nextIndex = currentIndex >= patternArray.length ? 0 : currentIndex;
@@ -2792,12 +2792,10 @@ async processWaitMode(userId, issue) {
             const betName = nextBet === 'B' ? 'BIG' : 'SMALL';
             nextBetTypeStr = `${betName}`;
             
-            patternInfo = `📊 BS Formula: ${patternArray.join(' → ')}\n` +
-                         `🔢 Current Step: ${nextIndex + 1}/${patternArray.length}\n` +
-                         `🎯 Next Bet: ${betName}`;
+            patternStep = `Step ${nextIndex + 1}/${patternArray.length}`;
             
         } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
-            // Colour Formula နဲ့ နောက်ထိုးရမယ့် bet
+            // Colour Formula analysis
             const patternArray = patternsData.colour_pattern.split(',');
             const currentIndex = patternsData.colour_current_index;
             const nextIndex = currentIndex >= patternArray.length ? 0 : currentIndex;
@@ -2812,74 +2810,84 @@ async processWaitMode(userId, issue) {
             const colourName = colourNames[nextColour] || nextColour;
             nextBetTypeStr = `${colourName}`;
             
-            patternInfo = `📊 Colour Formula: ${patternArray.map(c => colourNames[c] || c).join(' → ')}\n` +
-                         `🔢 Current Step: ${nextIndex + 1}/${patternArray.length}\n` +
-                         `🎯 Next Bet: ${colourName}`;
+            patternStep = `Step ${nextIndex + 1}/${patternArray.length}`;
         } else {
             console.log(`❌ No formula pattern for wait mode`);
             waitingForResults[userId] = false;
             return;
         }
 
-        // Analyze if this bet would win based on pattern
+        // ✅ ပြင်ဆင်ချက်: အမှန်တကယ် နောက်ဆုံးထွက်ခဲ့တဲ့ result ကိုသုံးပြီး analysis လုပ်မယ်
+        const lastNumber = secondLastResult.number || '';  // ✅ ယခင် result ကို စစ်မယ်
+        const lastColour = secondLastResult.colour || '';
+        
         let analysis = "";
         let recommendation = "";
         let shouldBet = false;
         
+        console.log(`🔍 Checking if next bet (${nextBetTypeStr}) would win on ${lastNumber}`);
+        
         if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
-            // BS Formula analysis
+            // BS Formula analysis - ယခင် result ကိုကြည့်ပြီး နောက် bet အောင်မလား
             if (nextBetType === 13) { // BIG
                 analysis = `🎲 BIG wins on: 5,6,7,8,9`;
-                if (['5','6','7','8','9'].includes(secondLastNumber)) {
-                    analysis += `\n✅ Last BIG: ${secondLastNumber}`;
+                if (['5','6','7','8','9'].includes(lastNumber)) {
+                    analysis += `\n✅ Previous result was BIG: ${lastNumber}`;
                     shouldBet = true;
+                    console.log(`✅ GOOD TO BET - Last was BIG (${lastNumber}), next bet is BIG`);
                 } else {
-                    analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastNumber <= 4 ? 'SMALL' : 'BIG'})`;
+                    analysis += `\n❌ Previous was: ${lastNumber} (${['0','1','2','3','4'].includes(lastNumber) ? 'SMALL' : 'BIG'})`;
+                    console.log(`❌ WAIT - Last was ${lastNumber}, next bet is BIG`);
                 }
             } else { // SMALL
                 analysis = `🎲 SMALL wins on: 0,1,2,3,4`;
-                if (['0','1','2','3','4'].includes(secondLastNumber)) {
-                    analysis += `\n✅ Last SMALL: ${secondLastNumber}`;
+                if (['0','1','2','3','4'].includes(lastNumber)) {
+                    analysis += `\n✅ Previous result was SMALL: ${lastNumber}`;
                     shouldBet = true;
+                    console.log(`✅ GOOD TO BET - Last was SMALL (${lastNumber}), next bet is SMALL`);
                 } else {
-                    analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastNumber <= 4 ? 'SMALL' : 'BIG'})`;
+                    analysis += `\n❌ Previous was: ${lastNumber} (${['5','6','7','8','9'].includes(lastNumber) ? 'BIG' : 'SMALL'})`;
+                    console.log(`❌ WAIT - Last was ${lastNumber}, next bet is SMALL`);
                 }
             }
             
         } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
             // Colour Formula analysis
             if (nextBetType === 10) { // RED
-                analysis = `🎲 RED wins on: 0,2,4,6,8\n` +
-                          `• 0: 1.5x\n` +
-                          `• 2,4,6,8: 2x`;
-                if (['0','2','4','6','8'].includes(secondLastNumber)) {
-                    analysis += `\n✅ Last RED: ${secondLastNumber}`;
+                analysis = `🎲 RED wins on: 0,2,4,6,8`;
+                if (['0','2','4','6','8'].includes(lastNumber)) {
+                    analysis += `\n✅ Previous result was RED: ${lastNumber}`;
                     shouldBet = true;
+                    console.log(`✅ GOOD TO BET - Last was RED (${lastNumber}), next bet is RED`);
                 } else {
-                    analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastColour})`;
+                    analysis += `\n❌ Previous was: ${lastNumber} (${lastColour})`;
+                    console.log(`❌ WAIT - Last was ${lastNumber} (${lastColour}), next bet is RED`);
                 }
             } else if (nextBetType === 11) { // GREEN
-                analysis = `🎲 GREEN wins on: 1,3,5,7,9\n` +
-                          `• 5: 1.5x\n` +
-                          `• 1,3,7,9: 2x`;
-                if (['1','3','5','7','9'].includes(secondLastNumber)) {
-                    analysis += `\n✅ Last GREEN: ${secondLastNumber}`;
+                analysis = `🎲 GREEN wins on: 1,3,5,7,9`;
+                if (['1','3','5','7','9'].includes(lastNumber)) {
+                    analysis += `\n✅ Previous result was GREEN: ${lastNumber}`;
                     shouldBet = true;
+                    console.log(`✅ GOOD TO BET - Last was GREEN (${lastNumber}), next bet is GREEN`);
                 } else {
-                    analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastColour})`;
+                    analysis += `\n❌ Previous was: ${lastNumber} (${lastColour})`;
+                    console.log(`❌ WAIT - Last was ${lastNumber} (${lastColour}), next bet is GREEN`);
                 }
             } else if (nextBetType === 12) { // VIOLET
-                analysis = `🎲 VIOLET wins on: 0,5 (2x)`;
-                if (['0','5'].includes(secondLastNumber)) {
-                    analysis += `\n✅ Last VIOLET: ${secondLastNumber}`;
+                analysis = `🎲 VIOLET wins on: 0,5`;
+                if (['0','5'].includes(lastNumber)) {
+                    analysis += `\n✅ Previous result was VIOLET: ${lastNumber}`;
                     shouldBet = true;
+                    console.log(`✅ GOOD TO BET - Last was VIOLET (${lastNumber}), next bet is VIOLET`);
                 } else {
-                    analysis += `\n❌ Last was: ${secondLastNumber} (${secondLastColour})`;
+                    analysis += `\n❌ Previous was: ${lastNumber} (${lastColour})`;
+                    console.log(`❌ WAIT - Last was ${lastNumber} (${lastColour}), next bet is VIOLET`);
                 }
             }
         }
         
-        // Determine max wait loss count based on SL level
+        // ✅ အရေးကြီး: Wait loss count logic ပြင်ဆင်ခြင်း
+        let currentWaitLossCount = slPatternData.wait_loss_count || 0;
         const maxWaitLossCount = {
             1: 0, // SL1 - ချက်ချင်း bet (no wait mode)
             2: 2, // SL2 - Wait loss 2 times
@@ -2892,58 +2900,64 @@ async processWaitMode(userId, issue) {
         if (shouldBet) {
             recommendation = `✅ RECOMMENDATION: GOOD TO BET`;
             
-            // Reset wait loss count on good condition
+            // ✅ GOOD TO BET ဖြစ်ရင် wait loss count ကို reset လုပ်ပါ
             await this.db.run(
                 'UPDATE sl_patterns SET wait_loss_count = 0 WHERE user_id = ?',
                 [userId]
             );
-            
-            // ✅ WAIT MODE မှာ GOOD TO BET ဖြစ်ရင် ဒီအတိုင်း ဆက်နေမယ် (ဘာမှမလုပ်ဘူး)
-            console.log(`⏳ Wait mode GOOD condition - staying in wait mode`);
+            console.log(`✅ Reset wait loss count to 0`);
             
         } else {
             recommendation = `⚠️ RECOMMENDATION: WAIT`;
             
-            // Increase wait loss count
-            const newWaitLossCount = slPatternData.wait_loss_count + 1;
+            // ✅ WAIT ဖြစ်ရင် wait loss count တိုးပါ
+            const newWaitLossCount = currentWaitLossCount + 1;
             await this.db.run(
                 'UPDATE sl_patterns SET wait_loss_count = ? WHERE user_id = ?',
                 [newWaitLossCount, userId]
             );
+            console.log(`📈 Increased wait loss count to: ${newWaitLossCount}`);
             
             recommendation += `\n📈 Wait Loss Count: ${newWaitLossCount}/${maxWaitLossCount}`;
             
+            // Check if reached max wait loss
             if (newWaitLossCount >= maxWaitLossCount) {
                 recommendation += `\n\n🔴 MAX WAIT LOSS REACHED!\n🔄 Moving to REAL BETTING mode for 3 bets...`;
             }
         }
         
-        // Create detailed wait mode message
+        // Create wait mode message
         const waitMessage = 
             `⏳ WAIT BOT MODE - ANALYSIS\n` +
             `══════════════════════════\n\n` +
             `🎮 CURRENT ISSUE: ${currentIssue}\n` +
             `🎯 NEXT BET TYPE: ${nextBetTypeStr}\n` +
+            `📊 FORMULA: ${patternStep}\n\n` +
+            `${analysis}\n\n` +
             `${recommendation}\n\n` +
             `⚙️ SL SETTINGS:\n` +
             `• Current SL: ${slPatternData.current_sl}\n` +
-            `• Mode: WAIT BOT (${slPatternData.wait_loss_count}/${maxWaitLossCount})\n` +
+            `• Mode: WAIT BOT\n` +
+            `• Wait Loss Count: ${currentWaitLossCount}/${maxWaitLossCount}\n` +
             `• Bet Count: ${slPatternData.bet_count}/3`;
         
         await this.bot.sendMessage(userId, waitMessage);
         
         // Take action based on analysis
         if (shouldBet) {
-            // ✅ WAIT MODE မှာ GOOD TO BET ဖြစ်ရင်တောင် ဒီအတိုင်း ဆက်နေမယ်
-            console.log(`⏳ Wait mode GOOD condition detected, staying in wait mode`);
+            // ✅ GOOD TO BET ဖြစ်ရင်တောင် wait mode မှာပဲ ဆက်နေမယ်
+            // (ဒါက SL2 ရဲ့ လုပ်ဆောင်ချက်ဖြစ်တယ် - အခြေအနေကောင်းမှ မထိုးဘဲ စောင့်နေမယ်)
+            console.log(`⏳ Wait mode - GOOD condition detected, staying in wait mode`);
             waitingForResults[userId] = false;
             
-        } else if (slPatternData.wait_loss_count + 1 >= maxWaitLossCount) {
-            // Max wait loss reached, switch to betting mode for 3 bets
+        } else if (currentWaitLossCount + 1 >= maxWaitLossCount) {
+            // Max wait loss reached, switch to betting mode
             console.log(`🔄 Max wait loss reached, switching to betting mode`);
+            
+            // ✅ ဒီနေရာမှာ စောင့်ပြီးမှ switch လုပ်မယ်
             setTimeout(async () => {
                 await this.switchToBettingMode(userId);
-            }, 3000);
+            }, 2000);
             
         } else {
             // Continue waiting
