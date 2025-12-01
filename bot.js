@@ -2016,6 +2016,34 @@ Last update: ${getMyanmarTime()}`;
         console.log(`🔄 Calling updateBetSequence for user ${userId} with result: ${betResult}`);
         await this.updateBetSequence(userId, betResult);
 
+        // ✅ NEW: Check if this is an SL Layer bet and handle Win/Lose accordingly
+        if (betTypeStr.includes("SL")) {
+            console.log(`⚡ SL Layer bet detected for user ${userId}, result: ${betResult}`);
+            
+            const slPatternData = await this.getSlPattern(userId);
+            const slSession = await this.getSlBetSession(userId);
+            
+            if (slSession.is_wait_mode === 0) { // Only for REAL betting mode (not wait mode)
+                console.log(`📊 SL Layer in betting mode, checking bet count`);
+                
+                if (betResult === "WIN") {
+                    console.log(`🎯 SL Layer WIN - Moving to next SL level immediately`);
+                    // Win ဖြစ်ရင် ချက်ချင်း next SL level ကို ပြောင်းမယ်
+                    await this.moveToNextSlLevel(userId);
+                } else if (betResult === "LOSE") {
+                    console.log(`📈 SL Layer LOSE - Checking bet count: ${slPatternData.bet_count}`);
+                    
+                    // ဒီထဲမှာ bet count ကို စစ်ပြီး 3 ကြိမ်ပြည့်ရင် next SL ကို ပြောင်းမယ်
+                    // Bet count update က placeRealSlBet မှာ လုပ်ထားပြီးသားမို့ ဒီမှာ ထပ်မလုပ်စေရပါ
+                    
+                    if (slPatternData.bet_count >= 3) {
+                        console.log(`✅ Reached 3 bets in SL${slPatternData.current_sl} - Moving to next level`);
+                        await this.moveToNextSlLevel(userId);
+                    }
+                }
+            }
+        }
+
         waitingForResults[userId] = false;
         console.log(`🔄 Reset waitingForResults for user ${userId}`);
 
@@ -2548,11 +2576,10 @@ async placeRealSlBet(userId, issue) {
         const slPatternData = await this.getSlPattern(userId);
         const patternsData = await this.getFormulaPatterns(userId);
         
-        // Check if we've reached 3 bets in this betting phase
+        // ✅ IMPORTANT: Check if we're already at bet count 3 (shouldn't happen, but just in case)
         if (slPatternData.bet_count >= 3) {
-            console.log(`✅ Completed 3 bets for user ${userId} at SL${slPatternData.current_sl}`);
-            
-            // Move to next SL level
+            console.log(`✅ Already completed 3 bets for user ${userId} at SL${slPatternData.current_sl}`);
+            console.log(`🔄 Moving to next SL level immediately`);
             await this.moveToNextSlLevel(userId);
             return;
         }
@@ -2633,12 +2660,14 @@ async placeRealSlBet(userId, issue) {
                 this.startIssueChecker(userId);
             }
             
-            // Update bet count
+            // ✅ Update bet count ONLY if bet is successful
             const newBetCount = slPatternData.bet_count + 1;
             await this.db.run(
                 'UPDATE sl_patterns SET bet_count = ? WHERE user_id = ?',
                 [newBetCount, userId]
             );
+            
+            console.log(`✅ Updated bet count for user ${userId}: ${newBetCount}/3`);
             
             const successMessage = 
                 `✅ REAL BET PLACED SUCCESSFULLY\n` +
