@@ -2331,49 +2331,6 @@ Last update: ${getMyanmarTime()}`;
     bettingLoop();
 }
 
-async getSlLayerBetType(userId) {
-    try {
-        const slSession = await this.getSlBetSession(userId);
-        const slPatternData = await this.getSlPattern(userId);
-        const patternsData = await this.getFormulaPatterns(userId);
-        
-        // WAIT MODE ဖြစ်နေရင်
-        if (slSession.is_wait_mode) {
-            return {
-                betType: 0, // WAIT bet (no actual betting)
-                betTypeStr: `WAIT (SL ${slPatternData.current_sl})`
-            };
-        }
-        
-        // BETTING MODE - BS or Colour formula ကိုသုံးမယ်
-        if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
-            const bsResult = await this.getBsFormulaBetType(userId);
-            return {
-                betType: bsResult.betType,
-                betTypeStr: `${bsResult.betTypeStr} (SL ${slPatternData.current_sl})`
-            };
-        } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
-            const colourResult = await this.getColourFormulaBetType(userId);
-            return {
-                betType: colourResult.betType,
-                betTypeStr: `${colourResult.betTypeStr} (SL ${slPatternData.current_sl})`
-            };
-        } else {
-            // Fallback to random
-            const betType = Math.random() < 0.5 ? 13 : 14;
-            return {
-                betType,
-                betTypeStr: `${betType === 13 ? 'BIG' : 'SMALL'} (SL ${slPatternData.current_sl} - Random)`
-            };
-        }
-        
-    } catch (error) {
-        console.error(`Error in SL Layer betting for user ${userId}:`, error);
-        const betType = Math.random() < 0.5 ? 13 : 14;
-        return { betType, betTypeStr: betType === 13 ? "BIG" : "SMALL" };
-    }
-}
-
     async placeAutoBet(userId, issue) {
     const userSession = userSessions[userId];
     if (!userSession || !userSession.loggedIn) {
@@ -2386,14 +2343,6 @@ async getSlLayerBetType(userId) {
     const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
     
     let betType, betTypeStr;
-
-    // SL Layer Mode ကိုစစ်ဆေးခြင်း
-    if (randomMode === 'sl_layer') {
-        const slResult = await this.getSlLayerBetType(userId);
-        betType = slResult.betType;
-        betTypeStr = slResult.betTypeStr;
-        console.log(`🎯 SL Layer activated - Bet: ${betTypeStr}`);
-    } else {
 
     console.log(`🎯 Auto betting for user ${userId}, mode: ${randomMode}, game: ${userSession.gameType}`);
 
