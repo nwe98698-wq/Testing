@@ -2017,32 +2017,37 @@ Last update: ${getMyanmarTime()}`;
         await this.updateBetSequence(userId, betResult);
 
         // ✅ NEW: Check if this is an SL Layer bet and handle Win/Lose accordingly
-        if (betTypeStr.includes("SL")) {
-            console.log(`⚡ SL Layer bet detected for user ${userId}, result: ${betResult}`);
+if (betTypeStr.includes("SL")) {
+    console.log(`⚡ SL Layer bet detected for user ${userId}, result: ${betResult}`);
+    
+    const slPatternData = await this.getSlPattern(userId);
+    const slSession = await this.getSlBetSession(userId);
+    
+    if (slSession.is_wait_mode === 0) { // Only for REAL betting mode (not wait mode)
+        console.log(`📊 SL Layer in betting mode, checking bet count`);
+        
+        if (betResult === "WIN") {
+            console.log(`🎯 SL Layer WIN - Moving to next SL level immediately`);
+            // Win ဖြစ်ရင် ချက်ချင်း next SL level ကို ပြောင်းမယ်
+            await this.moveToNextSlLevel(userId);
+        } else if (betResult === "LOSE") {
+            console.log(`📈 SL Layer LOSE - Checking bet count: ${slPatternData.bet_count}`);
             
-            const slPatternData = await this.getSlPattern(userId);
-            const slSession = await this.getSlBetSession(userId);
+            // Bet count update ကို ဒီမှာ လုပ်မယ် (အရင်က placeRealSlBet မှာ လုပ်ထားတယ်)
+            const newBetCount = slPatternData.bet_count + 1;
+            await this.db.run(
+                'UPDATE sl_patterns SET bet_count = ? WHERE user_id = ?',
+                [newBetCount, userId]
+            );
+            console.log(`📈 Updated bet count to: ${newBetCount}/3`);
             
-            if (slSession.is_wait_mode === 0) { // Only for REAL betting mode (not wait mode)
-                console.log(`📊 SL Layer in betting mode, checking bet count`);
-                
-                if (betResult === "WIN") {
-                    console.log(`🎯 SL Layer WIN - Moving to next SL level immediately`);
-                    // Win ဖြစ်ရင် ချက်ချင်း next SL level ကို ပြောင်းမယ်
-                    await this.moveToNextSlLevel(userId);
-                } else if (betResult === "LOSE") {
-                    console.log(`📈 SL Layer LOSE - Checking bet count: ${slPatternData.bet_count}`);
-                    
-                    // ဒီထဲမှာ bet count ကို စစ်ပြီး 3 ကြိမ်ပြည့်ရင် next SL ကို ပြောင်းမယ်
-                    // Bet count update က placeRealSlBet မှာ လုပ်ထားပြီးသားမို့ ဒီမှာ ထပ်မလုပ်စေရပါ
-                    
-                    if (slPatternData.bet_count >= 3) {
-                        console.log(`✅ Reached 3 bets in SL${slPatternData.current_sl} - Moving to next level`);
-                        await this.moveToNextSlLevel(userId);
-                    }
-                }
+            if (newBetCount >= 3) {
+                console.log(`✅ Reached 3 bets in SL${slPatternData.current_sl} - Moving to next level`);
+                await this.moveToNextSlLevel(userId);
             }
         }
+    }
+}
 
         waitingForResults[userId] = false;
         console.log(`🔄 Reset waitingForResults for user ${userId}`);
@@ -3016,26 +3021,43 @@ async moveToNextSlLevel(userId) {
             [nextSl, newIndex, resetBetCount, userId]
         );
         
-        // Update session
+        // Update session - ဒီမှာ အရေးကြီးပါတယ်
         await this.db.run(
             'UPDATE sl_bet_sessions SET is_wait_mode = ?, wait_bet_type = ?, wait_issue = ?, wait_amount = ?, wait_total_profit = ? WHERE user_id = ?',
             [isWaitMode ? 1 : 0, '', '', 0, 0, userId]
         );
         
-        console.log(`✅ Moved to next SL level for user ${userId}: SL${nextSl} (index: ${newIndex})`);
+        console.log(`✅ Moved to next SL level for user ${userId}: SL${nextSl} (index: ${newIndex}), wait mode: ${isWaitMode}`);
         
         // Send notification to user
-        const message = 
-            `🔄 MOVED TO NEXT SL LEVEL\n` +
-            `═══════════════════════\n\n` +
-            `⚡ New Level: SL ${nextSl}\n` +
-            `🎯 Mode: ${isWaitMode ? 'WAIT BOT' : 'BETTING'}\n` +
-            `📊 Position: ${newIndex + 1}/${patternList.length}\n\n` +
-            `Bot will continue with new SL level.`;
+        let message = '';
+        if (isWaitMode) {
+            message = 
+                `🔄 MOVED TO NEXT SL LEVEL\n` +
+                `═══════════════════════\n\n` +
+                `⚡ New Level: SL ${nextSl}\n` +
+                `🎯 Mode: WAIT BOT\n` +
+                `📊 Position: ${newIndex + 1}/${patternList.length}\n\n` +
+                `⏳ Switching to WAIT BOT mode...\n` +
+                `🤖 Bot will analyze and wait for good conditions.`;
+        } else {
+            message = 
+                `🔄 MOVED TO NEXT SL LEVEL\n` +
+                `═══════════════════════\n\n` +
+                `⚡ New Level: SL ${nextSl}\n` +
+                `🎯 Mode: BETTING\n` +
+                `📊 Position: ${newIndex + 1}/${patternList.length}\n\n` +
+                `🎰 Ready for REAL betting...`;
+        }
         
         await this.bot.sendMessage(userId, message);
         
         waitingForResults[userId] = false;
+        
+        // အရေးကြီး: အခု wait mode ပြန်ဖြစ်သွားရင် နောက်တစ်ခါ ဝင်လာတဲ့အခါ wait mode အတိုင်း ဆက်လုပ်မယ်
+        if (isWaitMode) {
+            console.log(`⏳ User ${userId} now in WAIT BOT mode for SL${nextSl}`);
+        }
         
     } catch (error) {
         console.error(`❌ Error moving to next SL level for user ${userId}:`, error);
