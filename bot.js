@@ -2196,28 +2196,43 @@ Last update: ${getMyanmarTime()}`;
         }
     }
 
-    async runBot(chatId, userId) {
-        try {
-            const userSession = this.ensureUserSession(userId);
-            
-            if (!userSession.loggedIn) {
-                await this.bot.sendMessage(chatId, "Please login first!");
-                return;
-            }
+    runBot function ထဲမှာ SL Layer ကို check လုပ်ပြီး activate လုပ်ပါ
+async runBot(chatId, userId) {
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        if (!userSession.loggedIn) {
+            await this.bot.sendMessage(chatId, "Please login first!");
+            return;
+        }
 
-            if (autoBettingTasks[userId]) {
-                await this.bot.sendMessage(chatId, "Bot is already running!");
-                return;
-            }
+        if (autoBettingTasks[userId]) {
+            await this.bot.sendMessage(chatId, "Bot is already running!");
+            return;
+        }
 
-            autoBettingTasks[userId] = true;
-            waitingForResults[userId] = false;
+        autoBettingTasks[userId] = true;
+        waitingForResults[userId] = false;
 
-            await this.resetSessionStats(userId);
-            await this.saveBotSession(userId, true);
+        await this.resetSessionStats(userId);
+        await this.saveBotSession(userId, true);
 
+        // Check if SL Layer should be activated
+        const slPatternData = await this.getSlPattern(userId);
+        const patternsData = await this.getFormulaPatterns(userId);
+        
+        const hasSlPattern = slPatternData.pattern && slPatternData.pattern !== "Not set" && slPatternData.pattern !== "1,2,3,4,5";
+        const hasFormulaPattern = (patternsData.bs_pattern && patternsData.bs_pattern !== "") || 
+                                 (patternsData.colour_pattern && patternsData.colour_pattern !== "");
+        
+        let modeText;
+        
+        if (hasSlPattern && hasFormulaPattern) {
+            // Activate SL Layer mode
+            await this.activateSlLayer(userId);
+            modeText = `SL Layer Mode (${slPatternData.pattern})`;
+        } else {
             const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
-            let modeText;
             switch(randomMode) {
                 case 'big':
                     modeText = "Random BIG Only";
@@ -2232,28 +2247,48 @@ Last update: ${getMyanmarTime()}`;
                     modeText = "Follow Bot";
                     break;
                 case 'bs_formula':
-                    const patternsData = await this.getFormulaPatterns(userId);
-                    modeText = `BS Formula (${patternsData.bs_pattern})`;
+                    modeText = `BS Formula (${patternsData.bs_pattern || 'Not set'})`;
                     break;
                 case 'colour_formula':
-                    const colourPatternsData = await this.getFormulaPatterns(userId);
-                    modeText = `Colour Formula (${colourPatternsData.colour_pattern})`;
+                    modeText = `Colour Formula (${patternsData.colour_pattern || 'Not set'})`;
                     break;
                 default:
                     modeText = "Random Bot";
             }
-
-            const startMessage = `🚀 Auto Bot Started!\n\n• Game Type: ${userSession.gameType || 'WINGO'}\n• Mode: ${modeText}`;
-            await this.bot.sendMessage(chatId, startMessage);
-
-            this.startAutoBetting(userId);
-            
-        } catch (error) {
-            console.error(`Error running bot for user ${userId}:`, error);
-            await this.bot.sendMessage(chatId, "❌ Error starting bot.\n\nPlease try again.");
         }
-    }
 
+        const startMessage = `🚀 Auto Bot Started!\n\n• Game Type: ${userSession.gameType || 'WINGO'}\n• Mode: ${modeText}`;
+        await this.bot.sendMessage(chatId, startMessage);
+
+        this.startAutoBetting(userId);
+        
+    } catch (error) {
+        console.error(`Error running bot for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error starting bot.\n\nPlease try again.");
+    }
+}
+async activateSlLayer(userId) {
+    try {
+        const slPatternData = await this.getSlPattern(userId);
+        const firstSl = parseInt(slPatternData.pattern.split(',')[0]);
+        const isWaitMode = firstSl >= 2;
+
+        // Set random betting mode to indicate SL Layer is active
+        await this.saveUserSetting(userId, 'random_betting', 'sl_layer');
+        
+        // Update SL bet session
+        await this.db.run(
+            'INSERT OR REPLACE INTO sl_bet_sessions (user_id, is_wait_mode, wait_bet_type, wait_issue, wait_amount, wait_total_profit) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, isWaitMode ? 1 : 0, '', '', 0, 0]
+        );
+
+        console.log(`✅ SL Layer activated for user ${userId}, first SL: ${firstSl}, wait mode: ${isWaitMode}`);
+        return true;
+    } catch (error) {
+        console.error(`Error activating SL layer for user ${userId}:`, error);
+        return false;
+    }
+}
     startAutoBetting(userId) {
     const userSession = userSessions[userId];
     if (!userSession || !userSession.apiInstance) {
@@ -2347,6 +2382,12 @@ Last update: ${getMyanmarTime()}`;
     console.log(`🎯 Auto betting for user ${userId}, mode: ${randomMode}, game: ${userSession.gameType}`);
 
     try {
+        // Check if SL Layer mode is active
+        if (randomMode === 'sl_layer') {
+            console.log(`🎯 SL Layer mode detected for user ${userId}`);
+            await this.placeSlLayerBet(userId, issue);
+            return;
+        }
         // Determine bet type based on random mode
         switch(randomMode) {
             case 'big':
@@ -2472,7 +2513,193 @@ Last update: ${getMyanmarTime()}`;
         waitingForResults[userId] = false;
     }
 }
+async placeSlLayerBet(userId, issue) {
+    try {
+        const userSession = userSessions[userId];
+        const slPatternData = await this.getSlPattern(userId);
+        const slSession = await this.getSlBetSession(userId);
+        const patternsData = await this.getFormulaPatterns(userId);
+        
+        const currentSl = slPatternData.current_sl;
+        const isWaitMode = slSession.is_wait_mode;
+        const patternArray = slPatternData.pattern.split(',').map(x => parseInt(x));
+        const currentIndex = slPatternData.current_index;
 
+        console.log(`🎯 SL Layer betting: SL ${currentSl}, Wait Mode: ${isWaitMode}, Index: ${currentIndex}`);
+
+        if (isWaitMode) {
+            // WAIT BOT MODE - လက်ရှိ result ကို ကြည့်ပြီး ဆုံးဖြတ်မယ်
+            await this.processWaitMode(userId, issue);
+        } else {
+            // BETTING MODE - ပုံမှန် bet ထိုးမယ်
+            await this.processBettingMode(userId, issue);
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error in placeSlLayerBet for user ${userId}:`, error);
+        waitingForResults[userId] = false;
+    }
+}
+async processWaitMode(userId, issue) {
+    try {
+        const userSession = userSessions[userId];
+        const slSession = await this.getSlBetSession(userId);
+        
+        // Get recent result to decide
+        const results = await userSession.apiInstance.getRecentResults(1);
+        if (!results || results.length === 0) {
+            console.log(`❌ No results available for wait mode decision`);
+            waitingForResults[userId] = false;
+            return;
+        }
+
+        const lastResult = results[0];
+        const lastNumber = lastResult.number || '';
+        const lastColour = lastResult.colour || '';
+        
+        // Determine what to bet based on last result
+        let betType, betTypeStr;
+        
+        if (slSession.wait_bet_type === '') {
+            // First time in wait mode - decide what to wait for
+            const patternsData = await this.getFormulaPatterns(userId);
+            let formulaType;
+            
+            if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
+                formulaType = 'bs';
+            } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
+                formulaType = 'colour';
+            } else {
+                console.log(`❌ No formula pattern found for SL Layer`);
+                waitingForResults[userId] = false;
+                return;
+            }
+            
+            // Set wait bet type based on formula
+            if (formulaType === 'bs') {
+                // Wait for opposite of last result
+                if (['0','1','2','3','4'].includes(lastNumber)) {
+                    betTypeStr = "WAIT FOR BIG";
+                } else {
+                    betTypeStr = "WAIT FOR SMALL";
+                }
+            } else {
+                // colour formula - wait for opposite colour
+                if (lastColour === 'RED') {
+                    betTypeStr = "WAIT FOR GREEN/VIOLET";
+                } else if (lastColour === 'GREEN') {
+                    betTypeStr = "WAIT FOR RED/VIOLET";
+                } else if (lastColour === 'VIOLET') {
+                    betTypeStr = "WAIT FOR RED/GREEN";
+                } else {
+                    betTypeStr = "WAIT FOR CHANGE";
+                }
+            }
+            
+            // Save wait session
+            await this.db.run(
+                'UPDATE sl_bet_sessions SET wait_bet_type = ?, wait_issue = ? WHERE user_id = ?',
+                [betTypeStr, issue, userId]
+            );
+            
+            const waitMessage = `⏳ WAIT BOT MODE\n\n🎯 Waiting for: ${betTypeStr}\n📊 Current Issue: ${issue}\n\nBot is waiting for the right condition to bet...`;
+            await this.bot.sendMessage(userId, waitMessage);
+            
+        } else {
+            // Check if condition is met
+            const shouldBet = this.checkWaitCondition(lastNumber, lastColour, slSession.wait_bet_type);
+            
+            if (shouldBet) {
+                // Condition met - switch to betting mode
+                console.log(`✅ Wait condition met, switching to betting mode`);
+                await this.switchToBettingMode(userId);
+            } else {
+                // Continue waiting
+                console.log(`⏳ Continue waiting for condition`);
+                const waitMessage = `⏳ Still waiting...\n\n🎯 Waiting for: ${slSession.wait_bet_type}\n📊 Last Result: ${lastNumber} (${lastColour})\n📈 Wait Loss Count: ${slSession.wait_loss_count}`;
+                await this.bot.sendMessage(userId, waitMessage);
+            }
+        }
+        
+        waitingForResults[userId] = false;
+        
+    } catch (error) {
+        console.error(`❌ Error in processWaitMode for user ${userId}:`, error);
+        waitingForResults[userId] = false;
+    }
+}
+async processBettingMode(userId, issue) {
+    try {
+        const userSession = userSessions[userId];
+        const slPatternData = await this.getSlPattern(userId);
+        const patternsData = await this.getFormulaPatterns(userId);
+        
+        // Get bet type from formula
+        let betType, betTypeStr;
+        
+        if (patternsData.bs_pattern && patternsData.bs_pattern !== "") {
+            const bsResult = await this.getBsFormulaBetType(userId);
+            betType = bsResult.betType;
+            betTypeStr = `SL${slPatternData.current_sl} - ${bsResult.betTypeStr}`;
+        } else if (patternsData.colour_pattern && patternsData.colour_pattern !== "") {
+            const colourResult = await this.getColourFormulaBetType(userId);
+            betType = colourResult.betType;
+            betTypeStr = `SL${slPatternData.current_sl} - ${colourResult.betTypeStr}`;
+        } else {
+            console.log(`❌ No formula pattern for betting mode`);
+            waitingForResults[userId] = false;
+            return;
+        }
+
+        // Get bet amount based on SL level
+        const amount = await this.getSlBetAmount(userId);
+        
+        // Place the bet
+        const result = await userSession.apiInstance.placeBet(amount, betType);
+        
+        if (result.success) {
+            // Save pending bet
+            await this.savePendingBet(userId, userSession.platform, result.issueId, betTypeStr, amount);
+            
+            // Update SL bet count
+            await this.db.run(
+                'UPDATE sl_patterns SET bet_count = bet_count + 1 WHERE user_id = ?',
+                [userId]
+            );
+            
+            const successMessage = `✅ SL Layer Bet Placed!\n\n• SL Level: ${slPatternData.current_sl}\n• Type: ${betTypeStr}\n• Amount: ${amount.toLocaleString()} K\n• Issue: ${result.issueId}`;
+            await this.bot.sendMessage(userId, successMessage);
+            
+        } else {
+            console.log(`❌ SL Layer bet failed: ${result.message}`);
+            waitingForResults[userId] = false;
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error in processBettingMode for user ${userId}:`, error);
+        waitingForResults[userId] = false;
+    }
+}
+async getSlBetAmount(userId) {
+    try {
+        const slPatternData = await this.getSlPattern(userId);
+        const currentSl = slPatternData.current_sl;
+        
+        // SL level အလိုက် amount သတ်မှတ်မယ်
+        const slAmounts = {
+            1: 100,
+            2: 300,
+            3: 700,
+            4: 1600,
+            5: 3200
+        };
+        
+        return slAmounts[currentSl] || 100;
+    } catch (error) {
+        console.error(`Error getting SL bet amount for ${userId}:`, error);
+        return 100;
+    }
+}
     async getFollowBetType(apiInstance) {
         try {
             const results = await apiInstance.getRecentResults(1);
