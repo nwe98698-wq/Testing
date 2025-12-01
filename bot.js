@@ -2548,6 +2548,15 @@ async placeRealSlBet(userId, issue) {
         const slPatternData = await this.getSlPattern(userId);
         const patternsData = await this.getFormulaPatterns(userId);
         
+        // Check if we've reached 3 bets in this betting phase
+        if (slPatternData.bet_count >= 3) {
+            console.log(`✅ Completed 3 bets for user ${userId} at SL${slPatternData.current_sl}`);
+            
+            // Move to next SL level
+            await this.moveToNextSlLevel(userId);
+            return;
+        }
+        
         // Get bet info for display
         let betType, betTypeStr, patternStep;
         
@@ -2592,7 +2601,8 @@ async placeRealSlBet(userId, issue) {
             `📊 FORMULA: ${patternStep}\n` +
             `⚡ SL LEVEL: ${slPatternData.current_sl}\n` +
             `💰 AMOUNT: ${amount.toLocaleString()} K\n` +
-            `🔢 SEQUENCE: Step ${currentIndex + 1}/${amounts.length}`;
+            `🔢 SEQUENCE: Step ${currentIndex + 1}/${amounts.length}\n` +
+            `📈 BET COUNT: ${slPatternData.bet_count + 1}/3`;
         
         await this.bot.sendMessage(userId, betInfoMessage);
         
@@ -2624,9 +2634,10 @@ async placeRealSlBet(userId, issue) {
             }
             
             // Update bet count
+            const newBetCount = slPatternData.bet_count + 1;
             await this.db.run(
-                'UPDATE sl_patterns SET bet_count = bet_count + 1 WHERE user_id = ?',
-                [userId]
+                'UPDATE sl_patterns SET bet_count = ? WHERE user_id = ?',
+                [newBetCount, userId]
             );
             
             const successMessage = 
@@ -2637,6 +2648,7 @@ async placeRealSlBet(userId, issue) {
                 `📊 FORMULA: ${patternStep}\n` +
                 `⚡ SL LEVEL: ${slPatternData.current_sl}\n` +
                 `💰 AMOUNT: ${amount.toLocaleString()} K\n` +
+                `📈 BET COUNT: ${newBetCount}/3\n` +
                 `💵 POTENTIAL PROFIT: +${result.potentialProfit ? result.potentialProfit.toLocaleString() : 'N/A'} K\n\n` +
                 `⏳ Waiting for result...`;
             
@@ -2810,6 +2822,15 @@ async processWaitMode(userId, issue) {
             }
         }
         
+        // Determine max wait loss count based on SL level
+        const maxWaitLossCount = {
+            1: 0, // SL1 - ချက်ချင်း bet (no wait mode)
+            2: 2, // SL2 - Wait loss 2 times
+            3: 3, // SL3 - Wait loss 3 times
+            4: 4, // SL4 - Wait loss 4 times
+            5: 5  // SL5 - Wait loss 5 times
+        }[slPatternData.current_sl] || 0;
+        
         // Update wait loss count based on analysis
         if (shouldBet) {
             recommendation = `✅ RECOMMENDATION: GOOD TO BET`;
@@ -2830,10 +2851,10 @@ async processWaitMode(userId, issue) {
                 [newWaitLossCount, userId]
             );
             
-            recommendation += `\n📈 Wait Loss Count: ${newWaitLossCount}/2`;
+            recommendation += `\n📈 Wait Loss Count: ${newWaitLossCount}/${maxWaitLossCount}`;
             
-            if (newWaitLossCount >= 2) {
-                recommendation += `\n\n🔴 MAX WAIT LOSS REACHED!\n🔄 Moving to next SL level...`;
+            if (newWaitLossCount >= maxWaitLossCount) {
+                recommendation += `\n\n🔴 MAX WAIT LOSS REACHED!\n🔄 Moving to REAL BETTING mode for 3 bets...`;
             }
         }
         
@@ -2842,7 +2863,8 @@ async processWaitMode(userId, issue) {
             `⏳ WAIT BOT MODE - ANALYSIS\n` +
             `══════════════════════════\n\n` +
             `🎮 CURRENT ISSUE: ${currentIssue}\n` +
-            `🎯 NEXT BET TYPE: ${nextBetTypeStr}\n\n` +
+            `🎯 NEXT BET TYPE: ${nextBetTypeStr}\n` +
+            `⚡ SL LEVEL: ${slPatternData.current_sl}\n\n` +
             `${patternInfo}\n\n` +
             `📊 RECENT RESULTS:\n` +
             `• Last: ${lastNumber} (${lastColour})\n` +
@@ -2851,7 +2873,7 @@ async processWaitMode(userId, issue) {
             `${recommendation}\n\n` +
             `⚙️ SL SETTINGS:\n` +
             `• Current SL: ${slPatternData.current_sl}\n` +
-            `• Mode: ${slSession.is_wait_mode ? 'WAIT BOT' : 'BETTING'}\n` +
+            `• Mode: WAIT BOT (${slPatternData.wait_loss_count}/${maxWaitLossCount})\n` +
             `• Bet Count: ${slPatternData.bet_count}/3`;
         
         await this.bot.sendMessage(userId, waitMessage);
@@ -2863,10 +2885,10 @@ async processWaitMode(userId, issue) {
                 await this.switchToBettingMode(userId);
             }, 2000);
             
-        } else if (slPatternData.wait_loss_count + 1 >= 2) {
-            // Max wait loss reached, move to next SL level
+        } else if (slPatternData.wait_loss_count + 1 >= maxWaitLossCount) {
+            // Max wait loss reached, switch to betting mode for 3 bets
             setTimeout(async () => {
-                await this.moveToNextSlLevel(userId);
+                await this.switchToBettingMode(userId);
             }, 3000);
             
         } else {
@@ -2891,7 +2913,7 @@ async switchToBettingMode(userId) {
             [userId]
         );
         
-        // Reset wait loss count
+        // Reset wait loss count but keep bet count as is
         await this.db.run(
             'UPDATE sl_patterns SET wait_loss_count = 0 WHERE user_id = ?',
             [userId]
@@ -2928,7 +2950,8 @@ async switchToBettingMode(userId) {
             `⚡ SL LEVEL: ${slPatternData.current_sl}\n` +
             `${nextBetInfo}\n\n` +
             `💰 REAL MONEY BETTING ACTIVATED\n` +
-            `📊 Bet sequence will be used with real amounts`;
+            `📊 Bet sequence will be used with real amounts\n` +
+            `🎯 Total Bets in this phase: 3 bets`;
         
         await this.bot.sendMessage(userId, switchMessage);
         
@@ -2961,10 +2984,13 @@ async moveToNextSlLevel(userId) {
         const nextSl = patternList[newIndex];
         const isWaitMode = nextSl >= 2;
         
+        // Reset bet count for new level
+        const resetBetCount = 0;
+        
         // Update database
         await this.db.run(
-            'UPDATE sl_patterns SET current_sl = ?, current_index = ?, wait_loss_count = 0, bet_count = 0 WHERE user_id = ?',
-            [nextSl, newIndex, userId]
+            'UPDATE sl_patterns SET current_sl = ?, current_index = ?, wait_loss_count = 0, bet_count = ? WHERE user_id = ?',
+            [nextSl, newIndex, resetBetCount, userId]
         );
         
         // Update session
