@@ -59,53 +59,6 @@ class Database {
         this.db = new sqlite3.Database(DB_NAME);
         this.initDatabase();
     }
-    
-    async saveSlPattern(userId, pattern, currentSl = 1, currentIndex = 0, waitLossCount = 0, betCount = 0) {
-    try {
-        const existing = await this.db.get('SELECT user_id FROM sl_patterns WHERE user_id = ?', [userId]);
-        
-        if (existing) {
-            await this.db.run(
-                'UPDATE sl_patterns SET pattern = ?, current_sl = ?, current_index = ?, wait_loss_count = ?, bet_count = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-                [pattern, currentSl, currentIndex, waitLossCount, betCount, userId]
-            );
-        } else {
-            await this.db.run(
-                'INSERT INTO sl_patterns (user_id, pattern, current_sl, current_index, wait_loss_count, bet_count) VALUES (?, ?, ?, ?, ?, ?)',
-                [userId, pattern, currentSl, currentIndex, waitLossCount, betCount]
-            );
-        }
-        return true;
-    } catch (error) {
-        console.error(`Error saving SL pattern for user ${userId}:`, error);
-        return false;
-    }
-}
-async updateSlPatternState(userId, currentSl, currentIndex, waitLossCount, betCount) {
-    try {
-        await this.db.run(
-            'UPDATE sl_patterns SET current_sl = ?, current_index = ?, wait_loss_count = ?, bet_count = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-            [currentSl, currentIndex, waitLossCount, betCount, userId]
-        );
-        return true;
-    } catch (error) {
-        console.error(`Error updating SL pattern state for user ${userId}:`, error);
-        return false;
-    }
-}
-
-async resetSlPattern(userId) {
-    try {
-        await this.db.run(
-            'UPDATE sl_patterns SET pattern = "", current_sl = 1, current_index = 0, wait_loss_count = 0, bet_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-            [userId]
-        );
-        return true;
-    } catch (error) {
-        console.error(`Error resetting SL pattern for user ${userId}:`, error);
-        return false;
-    }
-}
 
     initDatabase() {
         const tables = [
@@ -857,42 +810,42 @@ class AutoLotteryBot {
     }
 
     getMainKeyboard(userId = null) {
-        let userSession;
-        if (userId) {
-            userSession = this.ensureUserSession(userId);
-        } else {
-            userSession = { gameType: 'WINGO' };
-        }
-        
-        if (userSession && userSession.gameType === 'TRX') {
-            return {
-                keyboard: [
-                    [{ text: "Login" }],
-                    [{ text: "Balance" }, { text: "Results" }],
-                    [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
-                    [{ text: "Bot Settings" }, { text: "My Bets" }],
-                    [{ text: "SL Layer" }, { text: "Bot Info" }],
-                    [{ text: "WINGO/TRX" }], 
-                    [{ text: "Run Bot" }, { text: "Stop Bot" }]
-                ],
-                resize_keyboard: true
-            };
-        } else {
-            return {
-                keyboard: [
-                    [{ text: "Login" }],
-                    [{ text: "Balance" }, { text: "Results" }],
-                    [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
-                    [{ text: "Bet RED" }, { text: "Bet GREEN" }, { text: "Bet VIOLET" }],
-                    [{ text: "Bot Settings" }, { text: "My Bets" }],
-                    [{ text: "SL Layer" }, { text: "Bot Info" }],
-                    [{ text: "WINGO/TRX" }], 
-                    [{ text: "Run Bot" }, { text: "Stop Bot" }]
-                ],
-                resize_keyboard: true
-            };
-        }
+    let userSession;
+    if (userId) {
+        userSession = this.ensureUserSession(userId);
+    } else {
+        userSession = { gameType: 'WINGO' };
     }
+    
+    if (userSession && userSession.gameType === 'TRX') {
+        return {
+            keyboard: [
+                [{ text: "Login" }],
+                [{ text: "Balance" }, { text: "Results" }],
+                [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
+                [{ text: "Bot Settings" }, { text: "My Bets" }],
+                [{ text: "SL Layer" }, { text: "Bot Info" }], // SL Layer button added here
+                [{ text: "WINGO/TRX" }], 
+                [{ text: "Run Bot" }, { text: "Stop Bot" }]
+            ],
+            resize_keyboard: true
+        };
+    } else {
+        return {
+            keyboard: [
+                [{ text: "Login" }],
+                [{ text: "Balance" }, { text: "Results" }],
+                [{ text: "Bet BIG" }, { text: "Bet SMALL" }],
+                [{ text: "Bet RED" }, { text: "Bet GREEN" }, { text: "Bet VIOLET" }],
+                [{ text: "Bot Settings" }, { text: "My Bets" }],
+                [{ text: "SL Layer" }, { text: "Bot Info" }], // SL Layer button added here
+                [{ text: "WINGO/TRX" }], 
+                [{ text: "Run Bot" }, { text: "Stop Bot" }]
+            ],
+            resize_keyboard: true
+        };
+    }
+}
 
     getBotSettingsKeyboard() {
         return {
@@ -951,15 +904,15 @@ class AutoLotteryBot {
     }
 
     getSlLayerKeyboard() {
-        return {
-            keyboard: [
-                [{ text: "Set SL Pattern" }, { text: "View SL Pattern" }],
-                [{ text: "Reset SL Pattern" }, { text: "SL Stats" }],
-                [{ text: "Main Menu" }]
-            ],
-            resize_keyboard: true
-        };
-    }
+    return {
+        keyboard: [
+            [{ text: "Set SL Pattern" }, { text: "View SL Pattern" }],
+            [{ text: "Reset SL Pattern" }, { text: "SL Stats" }],
+            [{ text: "Main Menu" }]
+        ],
+        resize_keyboard: true
+    };
+}
     
     async getColourFormulaBetType(userId) {
         try {
@@ -1368,21 +1321,21 @@ Press Run Bot to start auto betting!`;
                     break;
 
                 case "Set SL Pattern":
-                    userSession.step = 'set_sl_pattern';
-                    await this.bot.sendMessage(chatId, "Set SL Pattern\n\nEnter your SL pattern (comma separated numbers 1-5):\nExample: 2,1,3 (Starts from SL 2 with WAIT BOT)\nExample: 2,1 (Starts from SL 2 with WAIT BOT)\nExample: 1,2,3 (Starts from SL 1 with BETTING)\n\nEnter your SL pattern:");
-                    break;
+                userSession.step = 'set_sl_pattern';
+                await this.bot.sendMessage(chatId, "Set SL Pattern\n\nEnter your SL pattern (comma separated numbers 1-5):\nExample: 2,1,3 (Starts from SL 2 with WAIT BOT)\nExample: 2,1 (Starts from SL 2 with WAIT BOT)\nExample: 1,2,3 (Starts from SL 1 with BETTING)\n\nEnter your SL pattern:");
+                break;
 
-                case "View SL Pattern":
-                    await this.viewSlPattern(chatId, userId);
-                    break;
+            case "View SL Pattern":
+                await this.viewSlPattern(chatId, userId);
+                break;
 
-                case "Reset SL Pattern":
-                    await this.resetSlPattern(chatId, userId);
-                    break;
+            case "Reset SL Pattern":
+                await this.resetSlPattern(chatId, userId);
+                break;
 
-                case "SL Stats":
-                    await this.showSlStats(chatId, userId);
-                    break;
+            case "SL Stats":
+                await this.showSlStats(chatId, userId);
+                break;
 
                 case "WINGO 3 MIN":
                     await this.handleSetGameType(chatId, userId, text);
@@ -1398,11 +1351,11 @@ Press Run Bot to start auto betting!`;
                         reply_markup: this.getMainKeyboard()
                     });
             }
-        } catch (error) {
-            console.error(`Error handling button command '${text}' for user ${userId}:`, error);
-            await this.bot.sendMessage(chatId, "Error processing command. Please try again.");
-        }
+    } catch (error) {
+        console.error(`Error handling button command '${text}' for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "Error processing command. Please try again.");
     }
+}
 
     async showGameTypeMenu(chatId, userId) {
         const userSession = this.ensureUserSession(userId);
@@ -3050,51 +3003,51 @@ Choose your betting mode:`;
     }
 
     async showSlLayer(chatId, userId) {
-        try {
-            const slPatternData = await this.getSlPattern(userId);
-            const patternsData = await this.getFormulaPatterns(userId);
-            
-            const patternText = slPatternData.pattern || "Not set";
-            const currentSl = slPatternData.current_sl;
-            const currentIndex = slPatternData.current_index;
-            const waitLossCount = slPatternData.wait_loss_count;
-            const betCount = slPatternData.bet_count;
-            
-            const bsPatternActive = Boolean(patternsData.bs_pattern && patternsData.bs_pattern !== "Not set");
-            const colourPatternActive = Boolean(patternsData.colour_pattern && patternsData.colour_pattern !== "Not set");
-            
-            let activationStatus = "";
-            let readyForSl = true;
-            
-            if (!slPatternData.pattern || slPatternData.pattern === '1,2,3,4,5') {
-                activationStatus += "❌ SL Pattern not set\n";
-                readyForSl = false;
-            } else {
-                activationStatus += "✅ SL Pattern ready\n";
-            }
-            
-            if (!bsPatternActive && !colourPatternActive) {
-                activationStatus += "❌ BS/Colour Pattern not set\n";
-                readyForSl = false;
-            } else {
-                activationStatus += "✅ BS/Colour Pattern ready\n";
-            }
-            
-            const overallStatus = readyForSl ? "🟢 READY FOR SL LAYER" : "🔴 Not Ready";
-            
-            const activePatternType = bsPatternActive ? "BS Formula" : "Colour Formula";
-            const activePattern = bsPatternActive ? patternsData.bs_pattern : patternsData.colour_pattern;
-            
-            const slInfo = `🎯 SL Layer Bot System\n\nStatus: ${overallStatus}\n\nActivation Status:\n${activationStatus}\nCurrent Settings:\n- ${activePatternType}: ${activePattern}\n- SL Pattern: ${patternText}\n- Current SL Level: ${currentSl}\n- Wait Loss Count: ${waitLossCount}\n- Bet Count: ${betCount}/3\n\nHow to activate:\n1. Set your SL Pattern\n2. Set BS or Colour Pattern\n3. Press Run Bot\n4. System automatically activates SL Layer`;
-
-            await this.bot.sendMessage(chatId, slInfo, {
-                reply_markup: this.getSlLayerKeyboard()
-            });
-        } catch (error) {
-            console.error(`Error showing SL layer for user ${userId}:`, error);
-            await this.bot.sendMessage(chatId, "❌ Error loading SL layer. Please try again.");
+    try {
+        const slPatternData = await this.getSlPattern(userId);
+        const patternsData = await this.getFormulaPatterns(userId);
+        
+        const patternText = slPatternData.pattern || "Not set";
+        const currentSl = slPatternData.current_sl;
+        const currentIndex = slPatternData.current_index;
+        const waitLossCount = slPatternData.wait_loss_count;
+        const betCount = slPatternData.bet_count;
+        
+        const bsPatternActive = Boolean(patternsData.bs_pattern && patternsData.bs_pattern !== "Not set");
+        const colourPatternActive = Boolean(patternsData.colour_pattern && patternsData.colour_pattern !== "Not set");
+        
+        let activationStatus = "";
+        let readyForSl = true;
+        
+        if (!slPatternData.pattern || slPatternData.pattern === '1,2,3,4,5') {
+            activationStatus += "❌ SL Pattern not set\n";
+            readyForSl = false;
+        } else {
+            activationStatus += "✅ SL Pattern ready\n";
         }
+        
+        if (!bsPatternActive && !colourPatternActive) {
+            activationStatus += "❌ BS/Colour Pattern not set\n";
+            readyForSl = false;
+        } else {
+            activationStatus += "✅ BS/Colour Pattern ready\n";
+        }
+        
+        const overallStatus = readyForSl ? "🟢 READY FOR SL LAYER" : "🔴 Not Ready";
+        
+        const activePatternType = bsPatternActive ? "BS Formula" : "Colour Formula";
+        const activePattern = bsPatternActive ? patternsData.bs_pattern : patternsData.colour_pattern;
+        
+        const slInfo = `🎯 SL Layer Bot System\n\nStatus: ${overallStatus}\n\nActivation Status:\n${activationStatus}\nCurrent Settings:\n- ${activePatternType}: ${activePattern}\n- SL Pattern: ${patternText}\n- Current SL Level: ${currentSl}\n- Wait Loss Count: ${waitLossCount}\n- Bet Count: ${betCount}/3\n\nHow to activate:\n1. Set your SL Pattern\n2. Set BS or Colour Pattern\n3. Press Run Bot\n4. System automatically activates SL Layer`;
+
+        await this.bot.sendMessage(chatId, slInfo, {
+            reply_markup: this.getSlLayerKeyboard()
+        });
+    } catch (error) {
+        console.error(`Error showing SL layer for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error loading SL layer. Please try again.");
     }
+}
 
     async showBotInfo(chatId, userId) {
         const userSession = this.ensureUserSession(userId);
@@ -3256,31 +3209,64 @@ Choose your betting mode:`;
     }
 
     async viewSlPattern(chatId, userId) {
-        await this.bot.sendMessage(chatId, "View SL Pattern feature will be implemented soon.");
-    }
-
-    async showSlStats(chatId, userId) {
     try {
-        const slPatternData = await this.db.getSlPattern(userId);
-        const pattern = slPatternData.pattern;
+        const slPatternData = await this.getSlPattern(userId);
+        const slSession = await this.getSlBetSession(userId);
         
-        if (!pattern || pattern === '1,2,3,4,5') {
-            await this.bot.sendMessage(chatId, "❌ No SL Pattern Set!\n\nPlease set an SL pattern first to view statistics.");
-            return;
-        }
-
-        const patternArray = pattern.split(',').map(p => parseInt(p.trim()));
+        const patternText = slPatternData.pattern || "Not set";
         const currentSl = slPatternData.current_sl;
         const currentIndex = slPatternData.current_index;
         const waitLossCount = slPatternData.wait_loss_count;
         const betCount = slPatternData.bet_count;
         
-        const totalSteps = patternArray.length;
-        const progress = Math.round(((currentIndex + 1) / totalSteps) * 100);
-        
-        const statsText = `📈 SL Layer Statistics\n\n🎯 Pattern: ${pattern}\n📊 Progress: ${currentIndex + 1}/${totalSteps} (${progress}%)\n\nCurrent State:\n- 🎯 Current SL Level: ${currentSl}\n- 🚀 Current Mode: ${currentSl === 1 ? "BETTING" : "WAIT BOT"}\n- ⏳ Wait Loss Count: ${waitLossCount}/2\n- 🎰 Bet Count: ${betCount}/3\n\nNext Actions:\n${currentSl === 1 ? "• Place bet according to BS/Colour pattern\n• After 3 bets, move to next SL level" : "• Wait for 2 consecutive losses\n• Then move to next SL level"}`;
+        if (!patternText || patternText === "Not set") {
+            await this.bot.sendMessage(chatId, "❌ No SL Pattern Set!\n\nPlease set an SL pattern first using 'Set SL Pattern'.");
+            return;
+        }
 
-        await this.bot.sendMessage(chatId, statsText);
+        const patternList = patternText.split(',').map(x => parseInt(x.trim()));
+        let patternDisplay = "";
+        
+        patternList.forEach((slLevel, index) => {
+            if (index === currentIndex) {
+                patternDisplay += `▶️ SL${slLevel}`;
+            } else {
+                patternDisplay += `SL${slLevel}`;
+            }
+            if (index < patternList.length - 1) {
+                patternDisplay += " → ";
+            }
+        });
+
+        const modeStatus = slSession.is_wait_mode ? "WAIT BOT MODE" : `SL ${currentSl} BETTING MODE`;
+        
+        const patternInfo = `📊 Current SL Pattern\n\n🎯 Pattern: ${patternDisplay}\n📏 Total Levels: ${patternList.length}\n🔢 Current Level: ${currentIndex + 1}\n🚀 Current Mode: ${modeStatus}\n\n📈 Current Stats:\n- Wait Loss Count: ${waitLossCount}\n- Bet Count: ${betCount}/3\n- Current SL: ${currentSl}`;
+
+        await this.bot.sendMessage(chatId, patternInfo);
+        
+    } catch (error) {
+        console.error(`Error viewing SL pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error viewing SL pattern. Please try again.");
+    }
+}
+
+    async showSlStats(chatId, userId) {
+    try {
+        const slPatternData = await this.getSlPattern(userId);
+        const slSession = await this.getSlBetSession(userId);
+        const botSession = await this.getBotSession(userId);
+        
+        const patternText = slPatternData.pattern || "Not set";
+        const currentSl = slPatternData.current_sl;
+        const currentIndex = slPatternData.current_index;
+        const waitLossCount = slPatternData.wait_loss_count;
+        const betCount = slPatternData.bet_count;
+        
+        const netProfit = botSession.session_profit - botSession.session_loss;
+        
+        const statsInfo = `📊 SL Layer Statistics\n\n🎯 SL Pattern: ${patternText}\n🔢 Current Level: ${currentIndex + 1}\n🚀 Current SL: ${currentSl}\n📈 Current Mode: ${slSession.is_wait_mode ? "WAIT BOT" : "BETTING"}\n\n📈 Performance Stats:\n- Wait Loss Count: ${waitLossCount}\n- Bet Count: ${betCount}/3\n- Session Profit: ${botSession.session_profit.toLocaleString()} K\n- Session Loss: ${botSession.session_loss.toLocaleString()} K\n- Net Profit: ${netProfit.toLocaleString()} K\n- Total Bets: ${botSession.total_bets}`;
+
+        await this.bot.sendMessage(chatId, statsInfo);
         
     } catch (error) {
         console.error(`Error showing SL stats for user ${userId}:`, error);
@@ -3542,28 +3528,37 @@ Choose your betting mode:`;
         const userSession = this.ensureUserSession(userId);
         
         const pattern = text.trim();
-        const validPattern = /^[1-5,]+$/.test(pattern);
+        const numbers = pattern.split(',').map(x => parseInt(x.trim()));
         
-        if (!validPattern || pattern.length === 0) {
-            await this.bot.sendMessage(chatId, "❌ Invalid SL Pattern!\n\nPlease use ONLY numbers 1-5 separated by commas.\n\nExamples:\n• 2,1,3 (Starts from SL 2 with WAIT BOT)\n• 2,1 (Starts from SL 2 with WAIT BOT)\n• 1,2,3 (Starts from SL 1 with BETTING)");
+        if (numbers.length === 0 || numbers.some(isNaN) || numbers.some(num => num < 1 || num > 5)) {
+            await this.bot.sendMessage(chatId, "❌ Invalid SL pattern!\n\nPlease use only numbers 1-5 separated by commas.\n\nExamples:\n• 1,2,3,4,5\n• 2,1,3\n• 1,2,3");
             return;
         }
 
-        const patternArray = pattern.split(',').map(p => parseInt(p.trim())).filter(p => p >= 1 && p <= 5);
+        const cleanPattern = numbers.join(',');
         
-        if (patternArray.length === 0) {
-            await this.bot.sendMessage(chatId, "❌ Invalid SL Pattern!\n\nPattern must contain at least one number between 1-5.");
-            return;
+        // Save SL pattern to database
+        const existing = await this.db.get('SELECT user_id FROM sl_patterns WHERE user_id = ?', [userId]);
+        
+        if (existing) {
+            await this.db.run(
+                'UPDATE sl_patterns SET pattern = ?, current_sl = ?, current_index = 0, wait_loss_count = 0, bet_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+                [cleanPattern, numbers[0], userId]
+            );
+        } else {
+            await this.db.run(
+                'INSERT INTO sl_patterns (user_id, pattern, current_sl, current_index, wait_loss_count, bet_count) VALUES (?, ?, ?, 0, 0, 0)',
+                [userId, cleanPattern, numbers[0]]
+            );
         }
 
-        const cleanPattern = patternArray.join(',');
-        const firstSl = patternArray[0];
+        // Reset SL bet session
+        await this.db.run(
+            'INSERT OR REPLACE INTO sl_bet_sessions (user_id, is_wait_mode, wait_bet_type, wait_issue, wait_amount, wait_total_profit) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, numbers[0] >= 2 ? 1 : 0, '', '', 0, 0]
+        );
 
-        await this.db.saveSlPattern(userId, cleanPattern, firstSl, 0, 0, 0);
-
-        const startMode = firstSl === 1 ? "BETTING" : "WAIT BOT";
-        
-        const successMessage = `✅ SL Pattern Set Successfully!\n\n🎯 Pattern: ${cleanPattern}\n📊 Length: ${patternArray.length} steps\n🔢 Starting SL: ${firstSl}\n🚀 Start Mode: ${startMode}\n\n🤖 SL Layer is now ready for activation!`;
+        const successMessage = `✅ SL Pattern Set Successfully!\n\n🎯 Pattern: ${cleanPattern}\n🔢 Starting SL: ${numbers[0]}\n📊 Pattern Length: ${numbers.length} levels\n\n🤖 SL Layer is now ready for use!`;
 
         await this.bot.sendMessage(chatId, successMessage, {
             reply_markup: this.getSlLayerKeyboard()
@@ -3577,44 +3572,34 @@ Choose your betting mode:`;
     }
 }
 
-    async viewSlPattern(chatId, userId) {
+    async resetSlPattern(chatId, userId) {
     try {
-        const slPatternData = await this.db.getSlPattern(userId);
-        const pattern = slPatternData.pattern;
+        const slPatternData = await this.getSlPattern(userId);
+        const patternText = slPatternData.pattern || "1,2,3,4,5";
         
-        if (!pattern || pattern === '1,2,3,4,5') {
-            await this.bot.sendMessage(chatId, "❌ No SL Pattern Set!\n\nPlease set an SL pattern first using 'Set SL Pattern'.");
-            return;
-        }
-
-        const patternArray = pattern.split(',').map(p => parseInt(p.trim()));
-        const currentSl = slPatternData.current_sl;
-        const currentIndex = slPatternData.current_index;
-        const waitLossCount = slPatternData.wait_loss_count;
-        const betCount = slPatternData.bet_count;
+        const numbers = patternText.split(',').map(x => parseInt(x.trim()));
+        const firstSl = numbers[0];
+        const isWaitMode = firstSl >= 2;
         
-        let patternDisplay = "";
-        patternArray.forEach((sl, index) => {
-            if (index === currentIndex) {
-                patternDisplay += `▶️ SL${sl}`;
-            } else {
-                patternDisplay += `SL${sl}`;
-            }
-            if (index < patternArray.length - 1) {
-                patternDisplay += " → ";
-            }
-        });
+        // Reset SL pattern to first level
+        await this.db.run(
+            'UPDATE sl_patterns SET current_sl = ?, current_index = 0, wait_loss_count = 0, bet_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [firstSl, userId]
+        );
+        
+        // Reset SL bet session
+        await this.db.run(
+            'UPDATE sl_bet_sessions SET is_wait_mode = ?, wait_bet_type = ?, wait_issue = ?, wait_amount = ?, wait_total_profit = ? WHERE user_id = ?',
+            [isWaitMode ? 1 : 0, '', '', 0, 0, userId]
+        );
 
-        const currentMode = currentSl === 1 ? "BETTING" : "WAIT BOT";
-        const nextAction = currentSl === 1 ? "Place Bet" : "Wait for Loss";
+        const successMessage = `✅ SL Pattern Reset Successfully!\n\n🔄 Reset to: SL ${firstSl}\n📊 Pattern: ${patternText}\n🎯 Mode: ${isWaitMode ? "WAIT BOT" : "BETTING"}\n\n🤖 SL Layer has been reset to the beginning!`;
 
-        const patternInfo = `📊 Current SL Pattern\n\n🎯 Pattern: ${patternDisplay}\n📏 Total Steps: ${patternArray.length}\n🔢 Current Step: ${currentIndex + 1}\n\nCurrent State:\n- 🎯 Current SL: ${currentSl}\n- 🚀 Mode: ${currentMode}\n- ⏳ Wait Loss Count: ${waitLossCount}/2\n- 🎰 Bet Count: ${betCount}/3\n- ➡️ Next Action: ${nextAction}`;
-
-        await this.bot.sendMessage(chatId, patternInfo);
+        await this.bot.sendMessage(chatId, successMessage);
         
     } catch (error) {
-        console.error(`Error viewing SL pattern for user ${userId}:`, error);
-        await this.bot.sendMessage(chatId, "❌ Error viewing SL pattern. Please try again.");
+        console.error(`Error resetting SL pattern for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "❌ Error resetting SL pattern. Please try again.");
     }
 }
 
@@ -3632,20 +3617,6 @@ Choose your betting mode:`;
             await this.bot.sendMessage(chatId, "❌ Error clearing BS pattern. Please try again.");
         }
     }
-    
-    async resetSlPattern(chatId, userId) {
-    try {
-        await this.db.resetSlPattern(userId);
-        
-        await this.bot.sendMessage(chatId, "✅ SL Pattern Reset Successfully!\n\nAll SL pattern data has been cleared.", {
-            reply_markup: this.getSlLayerKeyboard()
-        });
-        
-    } catch (error) {
-        console.error(`Error resetting SL pattern for user ${userId}:`, error);
-        await this.bot.sendMessage(chatId, "❌ Error resetting SL pattern. Please try again.");
-    }
-}
 
     async clearColourPattern(chatId, userId) {
         try {
