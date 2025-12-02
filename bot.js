@@ -3386,7 +3386,7 @@ Bot session has been refreshed and ready for a fresh start!`;
         }
     }
 
-    async handleBroadcastMessage(msg, match) {
+async handleBroadcastMessage(msg, match) {
     const chatId = msg.chat.id;
     const userId = String(chatId);
 
