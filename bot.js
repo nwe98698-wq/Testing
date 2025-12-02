@@ -3387,27 +3387,156 @@ Bot session has been refreshed and ready for a fresh start!`;
     }
 
     async handleBroadcastMessage(msg, match) {
-        const chatId = msg.chat.id;
-        const userId = String(chatId);
+    const chatId = msg.chat.id;
+    const userId = String(chatId);
 
-        if (userId !== ADMIN_USER_ID) {
-            await this.bot.sendMessage(chatId, "You are not authorized to use this command.");
-            return;
-        }
-
-        await this.bot.sendMessage(chatId, "Broadcast feature will be implemented soon.");
+    if (userId !== ADMIN_USER_ID) {
+        await this.bot.sendMessage(chatId, "You are not authorized to use this command.");
+        return;
     }
 
-    async handleBroadcastActive(msg, match) {
-        const chatId = msg.chat.id;
-        const userId = String(chatId);
+    const message = match[1];
+    if (!message) {
+        await this.bot.sendMessage(chatId, "Please provide a message to broadcast.\nUsage: /broadcast Your message here");
+        return;
+    }
 
-        if (userId !== ADMIN_USER_ID) {
-            await this.bot.sendMessage(chatId, "You are not authorized to use this command.");
+    try {
+        // Get all users from database
+        const users = await this.db.all('SELECT user_id FROM users');
+        const totalUsers = users.length;
+        
+        if (totalUsers === 0) {
+            await this.bot.sendMessage(chatId, "No users found to broadcast.");
             return;
         }
 
-        await this.bot.sendMessage(chatId, "Active broadcast feature will be implemented soon.");
+        const loadingMsg = await this.bot.sendMessage(chatId, `Broadcasting message to ${totalUsers} users...\n\n0/${totalUsers} (0%)`);
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (let i = 0; i < users.length; i++) {
+            const user = users[i];
+            try {
+                await this.bot.sendMessage(user.user_id, `📢 **BROADCAST MESSAGE** 📢\n\n${message}\n\n_From Admin_`, {
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: true
+                });
+                successCount++;
+                
+                // Update progress every 10 users
+                if (i % 10 === 0 || i === users.length - 1) {
+                    const progress = Math.floor((i + 1) / totalUsers * 100);
+                    await this.bot.editMessageText(
+                        `Broadcasting message to ${totalUsers} users...\n\n${i + 1}/${totalUsers} (${progress}%)\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`,
+                        {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        }
+                    );
+                }
+                
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+            } catch (error) {
+                failCount++;
+                console.error(`Failed to send broadcast to user ${user.user_id}:`, error.message);
+            }
+        }
+
+        const resultText = `📢 **BROADCAST COMPLETED** 📢\n\n✅ Successfully sent to: ${successCount} users\n❌ Failed to send: ${failCount} users\n📊 Total users: ${totalUsers}\n📝 Message length: ${message.length} characters\n⏰ Sent at: ${getMyanmarTime()}`;
+        
+        await this.bot.editMessageText(resultText, {
+            chat_id: chatId,
+            message_id: loadingMsg.message_id,
+            parse_mode: 'Markdown'
+        });
+        
+    } catch (error) {
+        console.error('Broadcast error:', error);
+        await this.bot.sendMessage(chatId, `Broadcast failed: ${error.message}`);
+    }
+}
+
+async handleBroadcastActive(msg, match) {
+    const chatId = msg.chat.id;
+    const userId = String(chatId);
+
+    if (userId !== ADMIN_USER_ID) {
+        await this.bot.sendMessage(chatId, "You are not authorized to use this command.");
+        return;
+    }
+
+    const message = match[1];
+    if (!message) {
+        await this.bot.sendMessage(chatId, "Please provide a message to broadcast.\nUsage: /msg Your message here");
+        return;
+    }
+
+    try {
+        // Get only active users (have bot sessions)
+        const activeUsers = await this.db.all(`
+            SELECT DISTINCT user_id 
+            FROM bot_sessions 
+            WHERE is_running = 1 
+            OR last_activity > datetime('now', '-1 hour')
+        `);
+        
+        const totalActiveUsers = activeUsers.length;
+        
+        if (totalActiveUsers === 0) {
+            await this.bot.sendMessage(chatId, "No active users found.");
+            return;
+        }
+
+        const loadingMsg = await this.bot.sendMessage(chatId, `Broadcasting to ${totalActiveUsers} active users...\n\n0/${totalActiveUsers} (0%)`);
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (let i = 0; i < activeUsers.length; i++) {
+            const user = activeUsers[i];
+            try {
+                await this.bot.sendMessage(user.user_id, `📢 **ACTIVE USER MESSAGE** 📢\n\n${message}\n\n_From Admin - For active users only_`, {
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: true
+                });
+                successCount++;
+                
+                // Update progress every 5 users
+                if (i % 5 === 0 || i === activeUsers.length - 1) {
+                    const progress = Math.floor((i + 1) / totalActiveUsers * 100);
+                    await this.bot.editMessageText(
+                        `Broadcasting to ${totalActiveUsers} active users...\n\n${i + 1}/${totalActiveUsers} (${progress}%)\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`,
+                        {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        }
+                    );
+                }
+                
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 150));
+                
+            } catch (error) {
+                failCount++;
+                console.error(`Failed to send to active user ${user.user_id}:`, error.message);
+            }
+        }
+
+        const resultText = `📢 **ACTIVE BROADCAST COMPLETED** 📢\n\n✅ Successfully sent to: ${successCount} active users\n❌ Failed to send: ${failCount} users\n📊 Total active users: ${totalActiveUsers}\n⏰ Sent at: ${getMyanmarTime()}`;
+        
+        await this.bot.editMessageText(resultText, {
+            chat_id: chatId,
+            message_id: loadingMsg.message_id,
+            parse_mode: 'Markdown'
+        });
+        
+    } catch (error) {
+        console.error('Active broadcast error:', error);
+        await this.bot.sendMessage(chatId, `Active broadcast failed: ${error.message}`);
     }
 }
 
