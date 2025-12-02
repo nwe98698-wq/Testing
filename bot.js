@@ -2799,7 +2799,7 @@ Choose your betting mode:`;
         const patternsData = await this.getFormulaPatterns(userId);
         const bsPattern = patternsData.bs_pattern || "Not set";
         
-        const message = `BS Formula Settings\n\nCurrent Pattern: ${bsPattern}\n\nChoose an option:`;
+        const message = `Choose an option:`;
         
         await this.bot.sendMessage(chatId, message, {
             reply_markup: this.getBsPatternKeyboard()
@@ -2815,7 +2815,7 @@ Choose your betting mode:`;
         const patternsData = await this.getFormulaPatterns(userId);
         const colourPattern = patternsData.colour_pattern || "Not set";
         
-        const message = `Colour Formula Settings\n\nCurrent Pattern: ${colourPattern}\n\nChoose an option:`;
+        const message = `Choose an option:`;
         
         await this.bot.sendMessage(chatId, message, {
             reply_markup: this.getColourPatternKeyboard()
@@ -2827,16 +2827,104 @@ Choose your betting mode:`;
 }
 
     async showBotStats(chatId, userId) {
-        await this.bot.sendMessage(chatId, "Bot stats feature will be implemented soon.", {
-            reply_markup: this.getBotSettingsKeyboard()
-        });
-    }
+    try {
+        const userSession = this.ensureUserSession(userId);
+        const botSession = await this.getBotSession(userId);
+        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+        const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
+        const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
+        
+        const patternsData = await this.getFormulaPatterns(userId);
+        const bsPattern = patternsData.bs_pattern || "Not set";
+        const colourPattern = patternsData.colour_pattern || "Not set";
+        
+        let modeText;
+        switch(randomMode) {
+            case 'big':
+                modeText = "Random BIG Only";
+                break;
+            case 'small':
+                modeText = "Random SMALL Only";
+                break;
+            case 'bot':
+                modeText = "Random Bot";
+                break;
+            case 'follow':
+                modeText = "Follow Bot";
+                break;
+            case 'bs_formula':
+                modeText = `BS Formula: ${bsPattern}`;
+                break;
+            case 'colour_formula':
+                modeText = `Colour Formula: ${colourPattern}`;
+                break;
+            default:
+                modeText = "Random Bot";
+        }
+        
+        const netProfit = botSession.session_profit - botSession.session_loss;
+        const winRate = botSession.total_bets > 0 ? 
+            ((botSession.total_bets - (botSession.session_loss / 100)) / botSession.total_bets * 100).toFixed(2) : 0;
+        
+        const statsText = `Bot Statistics
 
-    async resetBotStats(chatId, userId) {
-        await this.bot.sendMessage(chatId, "Reset stats feature will be implemented soon.", {
+Performance:
+Total Bets: ${botSession.total_bets}
+Session Profit: ${botSession.session_profit.toLocaleString()} K
+Session Loss: ${botSession.session_loss.toLocaleString()} K
+Net Profit: ${netProfit.toLocaleString()} K
+Win Rate: ${winRate}%
+
+Targets:
+Profit Target: ${profitTarget > 0 ? profitTarget.toLocaleString() + ' K' : 'Disabled'}
+Loss Target: ${lossTarget > 0 ? lossTarget.toLocaleString() + ' K' : 'Disabled'}
+
+Settings:
+Betting Mode: ${modeText}
+Bot Status: ${botSession.is_running ? 'RUNNING ' : 'STOPPED '}
+
+Current Status: ${netProfit >= 0 ? 'PROFIT ' : 'LOSS '}`;
+
+        await this.bot.sendMessage(chatId, statsText, {
+            reply_markup: this.getBotSettingsKeyboard()
+        });
+        
+    } catch (error) {
+        console.error(`Error showing bot stats for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "Error loading bot statistics.", {
             reply_markup: this.getBotSettingsKeyboard()
         });
     }
+}
+
+async resetBotStats(chatId, userId) {
+    try {
+        const userSession = this.ensureUserSession(userId);
+        
+        await this.saveBotSession(userId, false, 0, 0, 0, 0);
+        
+        const confirmationText = ` Statistics Reset Successfully!
+
+All bot statistics have been reset to zero:
+• Total Bets: 0
+• Session Profit: 0 K
+• Session Loss: 0 K
+• Net Profit: 0 K
+
+Bot session has been refreshed and ready for a fresh start!`;
+
+        await this.bot.sendMessage(chatId, confirmationText, {
+            reply_markup: this.getBotSettingsKeyboard()
+        });
+        
+    } catch (error) {
+        console.error(`Error resetting bot stats for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "Error resetting statistics.", {
+            reply_markup: this.getBotSettingsKeyboard()
+        });
+    }
+}
+
 
     async viewBsPattern(chatId, userId) {
         try {
