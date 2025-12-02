@@ -3540,6 +3540,7 @@ async handleBroadcastActive(msg, match) {
     }
 }
 
+
 console.log("Auto Lottery Bot starting...");
 console.log("Game ID Restriction System: ENABLED");
 console.log("Admin Commands: /aid, /rid, /ids, /gats");
