@@ -706,6 +706,7 @@ async getRecentResults(count = 10) {
         return [];
     }
 }
+}
 
 class AutoLotteryBot {
     constructor() {
