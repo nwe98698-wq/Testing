@@ -3499,7 +3499,7 @@ async handleBroadcastActive(msg, match) {
         for (let i = 0; i < activeUsers.length; i++) {
             const user = activeUsers[i];
             try {
-                await this.bot.sendMessage(user.user_id, `📢 **ACTIVE USER MESSAGE** 📢\n\n${message}\n\n_From Admin - For active users only_`, {
+                await this.bot.sendMessage(user.user_id, `${message}`, {
                     parse_mode: 'Markdown',
                     disable_web_page_preview: true
                 });
@@ -3526,7 +3526,7 @@ async handleBroadcastActive(msg, match) {
             }
         }
 
-        const resultText = `📢 **ACTIVE BROADCAST COMPLETED** 📢\n\n✅ Successfully sent to: ${successCount} active users\n❌ Failed to send: ${failCount} users\n📊 Total active users: ${totalActiveUsers}\n⏰ Sent at: ${getMyanmarTime()}`;
+        const resultText = `📢**ACTIVE BROADCAST COMPLETED**\n\n✅ Successfully sent to: ${successCount} active users\n❌ Failed to send: ${failCount} users\nTotal active users: ${totalActiveUsers}\nSent at: ${getMyanmarTime()}`;
         
         await this.bot.editMessageText(resultText, {
             chat_id: chatId,
