@@ -3539,7 +3539,7 @@ async handleBroadcastActive(msg, match) {
         await this.bot.sendMessage(chatId, `Active broadcast failed: ${error.message}`);
     }
 }
-
+}
 
 console.log("Auto Lottery Bot starting...");
 console.log("Game ID Restriction System: ENABLED");
