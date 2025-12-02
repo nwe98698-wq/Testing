@@ -1327,7 +1327,6 @@ Your credentials will be saved for future use!`;
                 const successText = `Login Successful!
 
 Platform: ${platformName}
-Game Type: ${gameType}
 Game ID: ${gameId}
 Account: ${userSession.phone}
 Balance: ${balance.toLocaleString()} K
@@ -2796,16 +2795,36 @@ Choose your betting mode:`;
     }
 
     async showBsFormula(chatId, userId) {
-        await this.bot.sendMessage(chatId, "", {
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const bsPattern = patternsData.bs_pattern || "Not set";
+        
+        const message = `BS Formula Settings\n\nCurrent Pattern: ${bsPattern}\n\nChoose an option:`;
+        
+        await this.bot.sendMessage(chatId, message, {
             reply_markup: this.getBsPatternKeyboard()
         });
+    } catch (error) {
+        console.error(`Error showing BS formula for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "Error loading BS formula settings.");
     }
+}
 
     async showColourFormula(chatId, userId) {
-        await this.bot.sendMessage(chatId, "", {
+    try {
+        const patternsData = await this.getFormulaPatterns(userId);
+        const colourPattern = patternsData.colour_pattern || "Not set";
+        
+        const message = `Colour Formula Settings\n\nCurrent Pattern: ${colourPattern}\n\nChoose an option:`;
+        
+        await this.bot.sendMessage(chatId, message, {
             reply_markup: this.getColourPatternKeyboard()
         });
+    } catch (error) {
+        console.error(`Error showing Colour formula for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "Error loading Colour formula settings.");
     }
+}
 
     async showBotStats(chatId, userId) {
         await this.bot.sendMessage(chatId, "Bot stats feature will be implemented soon.", {
