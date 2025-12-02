@@ -555,23 +555,65 @@ class LotteryAPI {
 
 async getRecentResults(count = 10) {
     try {
+        let typeId;
+        let endpoint;
+        
         if (this.gameType === 'TRX') {
-            const body = {
-                "typeId": 13,
-                "language": 0,
-                "random": "b05034ba4a2642009350ee863f29e2e9",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
+            typeId = 13;
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'WINGO_3MIN') {
+            typeId = 2;
+            endpoint = 'GetGameIssue';
+        } else {
+            typeId = 1;
+            endpoint = 'GetGameIssue';
+        }
 
-            const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
+        const body = {
+            "language": 0,
+            "random": "b05034ba4a2642009350ee863f29e2e9",
+            "timestamp": Math.floor(Date.now() / 1000)
+        };
+        
+        if (this.gameType === 'TRX') {
+            body.typeId = 13;
+        } else {
+            body.typeId = typeId;
+        }
+        
+        body.signature = this.signMd5(body);
+
+        console.log(`GETTING RECENT RESULTS FOR ${this.gameType}, TYPEID: ${typeId}`);
+
+        let response;
+        if (this.gameType === 'TRX') {
+            response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
                 headers: this.headers,
                 timeout: 10000
             });
+        } else {
+            response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, {
+                "pageNo": 1,
+                "pageSize": count,
+                "language": 0,
+                "typeId": typeId,
+                "random": "6DEB0766860C42151A193692ED16D65A",
+                "timestamp": Math.floor(Date.now() / 1000)
+            }, {
+                headers: this.headers,
+                timeout: 10000
+            });
+        }
 
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
+        console.log(`RESULTS RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data, null, 2));
+
+        if (response.status === 200) {
+            const result = response.data;
+            if (result.msgCode === 0) {
+                const results = [];
+                
+                if (this.gameType === 'TRX') {
+                    // TRX GAME - SINGLE RESULT
                     const settled = result.data?.settled;
                     if (settled) {
                         const number = String(settled.number || '');
@@ -584,68 +626,85 @@ async getRecentResults(count = 10) {
                             colour = 'RED';
                         }
                         
-                        return [{
-                            issueNumber: settled.issueNumber,
+                        const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
+                        
+                        results.push({
+                            issueNumber: settled.issueNumber || '',
                             number: number,
+                            resultType: resultType,
                             colour: colour
-                        }];
-                    }
-                }
-            }
-        } else {
-            // WINGO_3MIN FOR TYPEID
-            const typeId = this.gameType === 'WINGO_3MIN' ? 2 : 1;
-            
-            const body = {
-                "pageNo": 1,
-                "pageSize": count,
-                "language": 0,
-                "typeId": typeId,
-                "random": "6DEB0766860C42151A193692ED16D65A",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
-
-            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    const dataStr = JSON.stringify(response.data);
-                    const startIdx = dataStr.indexOf('[');
-                    const endIdx = dataStr.indexOf(']') + 1;
-                    
-                    if (startIdx !== -1 && endIdx !== -1) {
-                        const resultsJson = dataStr.substring(startIdx, endIdx);
-                        const results = JSON.parse(resultsJson);
-                        
-                        results.forEach(resultItem => {
-                            const number = String(resultItem.number || '');
-                            if (['0', '5'].includes(number)) {
-                                resultItem.colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                resultItem.colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                resultItem.colour = 'RED';
-                            } else {
-                                resultItem.colour = 'UNKNOWN';
-                            }
                         });
-                        
-                        return results;
                     }
+                } else {
+                    // WINGO AND WINGO 3 MIN - MULTIPLE RESULTS
+                    const dataStr = JSON.stringify(response.data);
+                    console.log(`DATA STRING FOR ${this.gameType}:`, dataStr);
+                    
+                    // TRY TO EXTRACT RESULTS FROM DIFFERENT RESPONSE FORMATS
+                    let resultsData = [];
+                    
+                    if (result.data && Array.isArray(result.data)) {
+                        resultsData = result.data;
+                    } else if (result.data && result.data.list && Array.isArray(result.data.list)) {
+                        resultsData = result.data.list;
+                    } else if (result.data && result.data.settledList && Array.isArray(result.data.settledList)) {
+                        resultsData = result.data.settledList;
+                    } else {
+                        // TRY TO PARSE FROM JSON STRING
+                        try {
+                            const startIdx = dataStr.indexOf('[');
+                            const endIdx = dataStr.indexOf(']') + 1;
+                            
+                            if (startIdx !== -1 && endIdx !== -1) {
+                                const resultsJson = dataStr.substring(startIdx, endIdx);
+                                resultsData = JSON.parse(resultsJson);
+                            }
+                        } catch (parseError) {
+                            console.error(`Error parsing results for ${this.gameType}:`, parseError);
+                        }
+                    }
+                    
+                    console.log(`PARSED RESULTS DATA FOR ${this.gameType}:`, JSON.stringify(resultsData, null, 2));
+                    
+                    resultsData.forEach((resultItem, index) => {
+                        if (index < count) {
+                            const number = String(resultItem.number || resultItem.lotteryNum || resultItem.lotteryNumber || '');
+                            let colour = 'UNKNOWN';
+                            if (['0', '5'].includes(number)) {
+                                colour = 'VIOLET';
+                            } else if (['1', '3', '7', '9'].includes(number)) {
+                                colour = 'GREEN';
+                            } else if (['2', '4', '6', '8'].includes(number)) {
+                                colour = 'RED';
+                            }
+                            
+                            const resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
+                            const issueNumber = resultItem.issueNumber || resultItem.issue || resultItem.period || '';
+                            
+                            results.push({
+                                issueNumber: issueNumber,
+                                number: number,
+                                resultType: resultType,
+                                colour: colour
+                            });
+                        }
+                    });
                 }
+                
+                console.log(`FINAL RESULTS FOR ${this.gameType}:`, JSON.stringify(results, null, 2));
+                return results;
+            } else {
+                console.log(`ERROR GETTING RESULTS FOR ${this.gameType}:`, result.msg);
             }
         }
         return [];
     } catch (error) {
-        console.error('Error getting recent results:', error.message);
+        console.error(`Error getting recent results for ${this.gameType}:`, error.message);
+        if (error.response) {
+            console.error('Error response data:', error.response.data);
+        }
         return [];
     }
-}
 }
 
 class AutoLotteryBot {
@@ -1219,9 +1278,9 @@ Press Run Bot to start auto betting!`;
         const gameTypeText = `Current Game Type: ${currentGameType}${gameTypeInfo}
 
 Select Game Type:
-• WINGO: Standard number game (BIG/SMALL + Colours)
-• TRX: TRX cryptocurrency game (BIG/SMALL only)  
-• WINGO 3 MIN: WINGO 3 Minute game (BIG/SMALL + Colours)
+• WINGO:(BIG/SMALL + Colours)Suppord
+• TRX:(BIG/SMALL only)Suppord
+• WINGO 3 MIN:(BIG/SMALL + Colours)Suppord
 
 Choose your game type:`;
 
@@ -2935,7 +2994,7 @@ Choose your betting mode:`;
         
         const currentAmount = amounts[0];
         
-        const successMessage = `Bet Sequence Updated!\n\nNew Sequence: ${betSequence}\nCurrent Bet: ${currentAmount.toLocaleString()} K (Step 1)\n${validationMessage}\n\nBot will now use this sequence for auto betting.`;
+        const successMessage = `Bet Sequence Updated!\n\nNew Sequence: ${betSequence}\nCurrent Bet: ${currentAmount.toLocaleString()} K (Step 1)${validationMessage}\n\nBot will now use this sequence for auto betting.`;
         
         await this.bot.sendMessage(chatId, successMessage, {
             reply_markup: this.getBotSettingsKeyboard()
