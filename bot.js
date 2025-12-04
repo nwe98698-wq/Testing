@@ -324,7 +324,7 @@ class LotteryAPI {
              // TRX 3 MIN အတွက် typeId 14
             endpoint = 'GetTrxGameIssue';
         } else {
-            typeId = 1;
+            typeId = 2;
             endpoint = 'GetGameIssue';
         }
 
@@ -485,7 +485,7 @@ async placeBet(amount, betType) {
             typeId = 3;
             gameType = isColourBet ? 0 : 2;
         } else {
-            typeId = 1;
+            typeId = 2;
             gameType = isColourBet ? 0 : 2;
         }
 
@@ -580,7 +580,7 @@ async placeBet(amount, betType) {
     try {
         if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') { // TRX_3MIN ကိုထည့်ပါ
             const body = {
-                "typeId": this.gameType === 'TRX_3MIN' ? 14 : 13, // typeId အလိုက်ပြောင်း
+                "typeId": this.gameType === 'TRX_3MIN' ? 2 : 13, // typeId အလိုက်ပြောင်း
                 "language": 0,
                 "random": "b05034ba4a2642009350ee863f29e2e9",
                 "timestamp": Math.floor(Date.now() / 1000)
@@ -625,7 +625,7 @@ async placeBet(amount, betType) {
                 } else if (this.gameType === 'WINGO_5MIN') {
                     typeId = 3;
                 } else {
-                    typeId = 1;
+                    typeId = 2;
                 }
                 
                 const body = {
