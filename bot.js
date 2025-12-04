@@ -485,7 +485,7 @@ async placeBet(amount, betType) {
             typeId = 3;
             gameType = isColourBet ? 0 : 2;
         } else {
-            typeId = 2;
+            typeId = 1;
             gameType = isColourBet ? 0 : 2;
         }
 
@@ -625,7 +625,7 @@ async placeBet(amount, betType) {
                 } else if (this.gameType === 'WINGO_5MIN') {
                     typeId = 3;
                 } else {
-                    typeId = 2;
+                    typeId = 1;
                 }
                 
                 const body = {
