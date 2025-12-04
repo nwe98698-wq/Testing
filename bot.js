@@ -783,7 +783,7 @@ class AutoLotteryBot {
         return {
             keyboard: [
                 [{ text: "WINGO" }, { text: "TRX" }],
-                [{ text: "WINGO 30S" }, { text: "WINGO 3 MIN" }, { text: "WINGO 5 MIN" }],
+                [{ text: "WINGO 30S" }],[{text: "WINGO 3 MIN" }],[{text: "WINGO 5 MIN" }],
                 [{ text: "Back" }]
             ],
             resize_keyboard: true
@@ -1225,7 +1225,7 @@ Press Run Bot to start auto betting!`;
         if (currentGameType === 'TRX') {
             gameTypeInfo = "\n\nTRX Game: Supports BIG/SMALL Only (No colour betting)";
         } else if (currentGameType === 'WINGO_30S') {
-            gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting (30 seconds per round)";
+            gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting";
         } else if (currentGameType === 'WINGO_3MIN') {
             gameTypeInfo = "\n\nWINGO 3 MIN: Supports Bot BIG/SMALL and Colour betting";
         } else if (currentGameType === 'WINGO_5MIN') {
@@ -1239,7 +1239,7 @@ Press Run Bot to start auto betting!`;
 Select Game Type:
 • WINGO: (BIG/SMALL + Colours) Support
 • TRX: (BIG/SMALL) Support
-• WINGO 30S: (BIG/SMALL + Colours) Support - 30 seconds per round
+• WINGO 30S: (BIG/SMALL + Colours) Support 
 • WINGO 3 MIN: (BIG/SMALL + Colours) Support
 • WINGO 5 MIN: (BIG/SMALL + Colours) Support
 
