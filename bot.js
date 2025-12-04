@@ -321,7 +321,7 @@ class LotteryAPI {
             typeId = 3;
             endpoint = 'GetGameIssue';
         } else if (this.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
-            typeId = 14; // TRX 3 MIN အတွက် typeId 14
+             // TRX 3 MIN အတွက် typeId 14
             endpoint = 'GetTrxGameIssue';
         } else {
             typeId = 1;
@@ -473,7 +473,7 @@ async placeBet(amount, betType) {
             typeId = 13;
             gameType = 2;
         } else if (this.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
-            typeId = 14;
+            
             gameType = 2;
         } else if (this.gameType === 'WINGO_30S') {
             typeId = 30;
