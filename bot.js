@@ -312,16 +312,19 @@ class LotteryAPI {
             typeId = 13;
             endpoint = 'GetTrxGameIssue';
         } else if (this.gameType === 'WINGO_30S') {
-            typeId = 30;  // WINGO 30s USES TYPEID 0
+            typeId = 30;
             endpoint = 'GetGameIssue';
         } else if (this.gameType === 'WINGO_3MIN') {
-            typeId = 2;  // WINGO 3 MIN USES TYPEID 2
+            typeId = 2;
             endpoint = 'GetGameIssue';
         } else if (this.gameType === 'WINGO_5MIN') {
-            typeId = 3;  // WINGO 5 MIN USES TYPEID 3
+            typeId = 3;
             endpoint = 'GetGameIssue';
+        } else if (this.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
+            typeId = 14; // TRX 3 MIN အတွက် typeId 14
+            endpoint = 'GetTrxGameIssue';
         } else {
-            typeId = 1;  // WINGO NORMAL
+            typeId = 1;
             endpoint = 'GetGameIssue';
         }
 
@@ -469,6 +472,9 @@ async placeBet(amount, betType) {
         if (this.gameType === 'TRX') {
             typeId = 13;
             gameType = 2;
+        } else if (this.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
+            typeId = 14;
+            gameType = 2;
         } else if (this.gameType === 'WINGO_30S') {
             typeId = 30;
             gameType = isColourBet ? 0 : 2;
@@ -504,7 +510,7 @@ async placeBet(amount, betType) {
         console.log('REQUEST BODY:', JSON.stringify(requestBody, null, 2));
 
         let endpoint;
-        if (this.gameType === 'TRX') {
+        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') { // TRX_3MIN ကိုထည့်ပါ
             endpoint = 'GameTrxBetting';
         } else {
             endpoint = 'GameBetting';
@@ -571,14 +577,14 @@ async placeBet(amount, betType) {
 }
 
     async getRecentResults(count = 10) {
-        try {
-            if (this.gameType === 'TRX') {
-                const body = {
-                    "typeId": 13,
-                    "language": 0,
-                    "random": "b05034ba4a2642009350ee863f29e2e9",
-                    "timestamp": Math.floor(Date.now() / 1000)
-                };
+    try {
+        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') { // TRX_3MIN ကိုထည့်ပါ
+            const body = {
+                "typeId": this.gameType === 'TRX_3MIN' ? 14 : 13, // typeId အလိုက်ပြောင်း
+                "language": 0,
+                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
                 body.signature = this.signMd5(body);
 
                 const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
@@ -779,16 +785,18 @@ class AutoLotteryBot {
         };
     }
 
-    getGameTypeKeyboard() {
-        return {
-            keyboard: [
-                [{ text: "WINGO" }, { text: "TRX" }],
-                [{ text: "WINGO 30S" }],[{text: "WINGO 3 MIN" }],[{text: "WINGO 5 MIN" }],
-                [{ text: "Back" }]
-            ],
-            resize_keyboard: true
-        };
-    }
+    // Game type keyboard မှာ TRX 3 MIN ထည့်ပါ
+getGameTypeKeyboard() {
+    return {
+        keyboard: [
+            [{ text: "WINGO" }, { text: "TRX" }],
+            [{ text: "WINGO 30S" }],[{ text: "WINGO 3 MIN" }],[{ text: "WINGO 5 MIN" }],
+            [{ text: "TRX 3 MIN" }], // အသစ်ထည့်ပါ
+            [{ text: "Back" }]
+        ],
+        resize_keyboard: true
+    };
+}
 
     getBsPatternKeyboard() {
         return {
@@ -1205,6 +1213,15 @@ Press Run Bot to start auto betting!`;
                 case "TRX":
                     await this.handleSetGameType(chatId, userId, text);
                     break;
+					
+					        case "TRX 3 MIN": // အသစ်ထည့်ပါ
+        case "TRX":
+        case "WINGO":
+        case "WINGO 30S":
+        case "WINGO 3 MIN":
+        case "WINGO 5 MIN":
+            await this.handleSetGameType(chatId, userId, text);
+            break;
 
                 default:
                     await this.bot.sendMessage(chatId, "Please use the buttons below to navigate.", {
@@ -1218,52 +1235,59 @@ Press Run Bot to start auto betting!`;
     }
 
     async showGameTypeMenu(chatId, userId) {
-        const userSession = this.ensureUserSession(userId);
-        const currentGameType = userSession.gameType || 'WINGO';
-        
-        let gameTypeInfo = "";
-        if (currentGameType === 'TRX') {
-            gameTypeInfo = "\n\nTRX Game: Supports BIG/SMALL Only (No colour betting)";
-        } else if (currentGameType === 'WINGO_30S') {
-            gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting";
-        } else if (currentGameType === 'WINGO_3MIN') {
-            gameTypeInfo = "\n\nWINGO 3 MIN: Supports Bot BIG/SMALL and Colour betting";
-        } else if (currentGameType === 'WINGO_5MIN') {
-            gameTypeInfo = "\n\nWINGO 5 MIN: Supports Bot BIG/SMALL and Colour betting";
-        } else {
-            gameTypeInfo = "\n\nWINGO: Supports Bot BIG/SMALL and Colour betting";
-        }
-        
-        const gameTypeText = `Current Game Type: ${currentGameType}${gameTypeInfo}
+    const userSession = this.ensureUserSession(userId);
+    const currentGameType = userSession.gameType || 'WINGO';
+    
+    let gameTypeInfo = "";
+    if (currentGameType === 'TRX') {
+        gameTypeInfo = "\n\nTRX Game: Supports BIG/SMALL Only (No colour betting)";
+    } else if (currentGameType === 'TRX_3MIN') {
+        gameTypeInfo = "\n\nTRX 3 MIN: Supports BIG/SMALL Only (No colour betting)";
+    } else if (currentGameType === 'WINGO_30S') {
+        gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting";
+    } else if (currentGameType === 'WINGO_3MIN') {
+        gameTypeInfo = "\n\nWINGO 3 MIN: Supports Bot BIG/SMALL and Colour betting";
+    } else if (currentGameType === 'WINGO_5MIN') {
+        gameTypeInfo = "\n\nWINGO 5 MIN: Supports Bot BIG/SMALL and Colour betting";
+    } else {
+        gameTypeInfo = "\n\nWINGO: Supports Bot BIG/SMALL and Colour betting";
+    }
+    
+    const gameTypeText = `Current Game Type: ${currentGameType}${gameTypeInfo}
 
 Select Game Type:
 • WINGO: (BIG/SMALL + Colours) Support
 • TRX: (BIG/SMALL) Support
+• TRX 3 MIN: (BIG/SMALL) Support
 • WINGO 30S: (BIG/SMALL + Colours) Support 
 • WINGO 3 MIN: (BIG/SMALL + Colours) Support
 • WINGO 5 MIN: (BIG/SMALL + Colours) Support
 
 Choose your game type:`;
 
-        await this.bot.sendMessage(chatId, gameTypeText, {
-            reply_markup: this.getGameTypeKeyboard()
-        });
-    }
+    await this.bot.sendMessage(chatId, gameTypeText, {
+        reply_markup: this.getGameTypeKeyboard()
+    });
+}
 
     async handleSetGameType(chatId, userId, text) {
-        try {
-            const userSession = this.ensureUserSession(userId);
-            let gameType = text.toUpperCase();
-            
-            if (text === "WINGO 30S") {
-                gameType = "WINGO_30S";
-            } else if (text === "WINGO 3 MIN") {
-                gameType = "WINGO_3MIN";
-            } else if (text === "WINGO 5 MIN") {
-                gameType = "WINGO_5MIN";
-            }
-            
-            if (gameType === 'WINGO' || gameType === 'TRX' || gameType === 'WINGO_30S' || gameType === 'WINGO_3MIN' || gameType === 'WINGO_5MIN') {
+    try {
+        const userSession = this.ensureUserSession(userId);
+        let gameType = text.toUpperCase();
+        
+        if (text === "WINGO 30S") {
+            gameType = "WINGO_30S";
+        } else if (text === "WINGO 3 MIN") {
+            gameType = "WINGO_3MIN";
+        } else if (text === "WINGO 5 MIN") {
+            gameType = "WINGO_5MIN";
+        } else if (text === "TRX 3 MIN") { // အသစ်ထည့်ပါ
+            gameType = "TRX_3MIN";
+        }
+        
+        if (gameType === 'WINGO' || gameType === 'TRX' || gameType === 'WINGO_30S' || 
+            gameType === 'WINGO_3MIN' || gameType === 'WINGO_5MIN' || gameType === 'TRX_3MIN') {
+           
                 userSession.gameType = gameType;
                 await this.saveUserSetting(userId, 'game_type', gameType);
                 
@@ -2609,24 +2633,26 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async showBotSettings(chatId, userId) {
-        try {
-            const userSession = this.ensureUserSession(userId);
-            const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
-            const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
-            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
-            
-            let defaultSequence;
-            if (userSession.gameType === 'WINGO_30S') {
-                defaultSequence = '50,100,200,400,800,1600,3200,6400'; // WINGO 30S အတွက် sequence
-            } else if (userSession.gameType === 'WINGO_3MIN') {
-                defaultSequence = '100,500,1000,5000';
-            } else if (userSession.gameType === 'WINGO_5MIN') {
-                defaultSequence = '100,300,700,1600,3200,7600,16000,32000'; // WINGO 5 MIN အတွက် sequence
-            } else if (userSession.gameType === 'TRX') {
-                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-            } else {
-                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-            }
+    try {
+        const userSession = this.ensureUserSession(userId);
+        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
+        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+        
+        let defaultSequence;
+        if (userSession.gameType === 'WINGO_30S') {
+            defaultSequence = '50,100,200,400,800,1600,3200,6400';
+        } else if (userSession.gameType === 'WINGO_3MIN') {
+            defaultSequence = '100,500,1000,5000';
+        } else if (userSession.gameType === 'WINGO_5MIN') {
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        } else if (userSession.gameType === 'TRX') {
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        } else if (userSession.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        } else {
+            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+        }
             
             const currentAmount = await this.getCurrentBetAmount(userId);
             
