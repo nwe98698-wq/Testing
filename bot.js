@@ -304,287 +304,317 @@ class LotteryAPI {
     }
 
     async getCurrentIssue() {
-    try {
-        let typeId;
-        let endpoint;
-        
-        if (this.gameType === 'TRX') {
-            typeId = 13;
-            endpoint = 'GetTrxGameIssue';
-        } else if (this.gameType === 'WINGO_30S') {
-            typeId = 30;
-            endpoint = 'GetGameIssue';
-        } else if (this.gameType === 'WINGO_3MIN') {
-            typeId = 2;
-            endpoint = 'GetGameIssue';
-        } else if (this.gameType === 'WINGO_5MIN') {
-            typeId = 3;
-            endpoint = 'GetGameIssue';
-        } else if (this.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
-             // TRX 3 MIN အတွက် typeId 14
-            endpoint = 'GetTrxGameIssue';
-        } else {
-            typeId = 2;
-            endpoint = 'GetGameIssue';
-        }
-
-        const body = {
-            "typeId": typeId,
-            "language": 0,
-            "random": "b05034ba4a2642009350ee863f29e2e9",
-            "timestamp": Math.floor(Date.now() / 1000)
-        };
-        body.signature = this.signMd5(body);
-
-        console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, TYPEID: ${typeId}`);
-
-        const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
-            headers: this.headers,
-            timeout: 10000
-        });
-
-        console.log(`ISSUE RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
-
-        if (response.status === 200) {
-            const result = response.data;
+        try {
+            let typeId;
+            let endpoint;
             
-            if (result.msgCode === 0) {
-                let issueNumber = '';
-                
-                // TRX GAME
-                if (this.gameType === 'TRX') {
-                    issueNumber = result.data?.predraw?.issueNumber || 
-                                 result.data?.issueNumber || 
-                                 result.issueNumber || '';
-                } 
-                // WINGO 30S GAME
-                else if (this.gameType === 'WINGO_30S') {
-                    // WINGO 30S SPECIFIC RESPONSE FORMAT
-                    if (result.data) {
-                        issueNumber = result.data.issueNumber || 
-                                     result.data.predraw?.issueNumber || 
-                                     result.data.current?.issueNumber || '';
-                        
-                        // TRY DIFFERENT PATHS FOR WINGO 30S
-                        if (!issueNumber) {
-                            // Check for nested structures
-                            if (result.data.currentIssue) {
-                                issueNumber = result.data.currentIssue;
-                            } else if (result.data.issue) {
-                                issueNumber = result.data.issue;
-                            }
-                        }
-                    }
-                    
-                    // Fallback to direct result properties
-                    if (!issueNumber) {
-                        issueNumber = result.issueNumber || result.issue || '';
-                    }
-                }
-                // OTHER WINGO GAMES
-                else if (this.gameType === 'WINGO_3MIN' || this.gameType === 'WINGO_5MIN' || this.gameType === 'WINGO') {
-                    // Standard WINGO response format
-                    issueNumber = result.data?.issueNumber || 
-                                 result.data?.predraw?.issueNumber || 
-                                 result.issueNumber || 
-                                 result.data?.current?.issueNumber || '';
-                    
-                    // Try to find issue number in data string if not found
-                    if (!issueNumber && result.data) {
-                        const dataStr = JSON.stringify(result.data);
-                        const issueMatch = dataStr.match(/"issueNumber"\s*:\s*"(\d+)"/);
-                        if (issueMatch) {
-                            issueNumber = issueMatch[1];
-                        }
-                    }
-                }
-                
-                console.log(`CURRENT ISSUE FOR ${this.gameType}: ${issueNumber}`);
-                return issueNumber;
+            if (this.gameType === 'TRX') {
+                typeId = 13;
+                endpoint = 'GetTrxGameIssue';
+            } else if (this.gameType === 'WINGO_30S') {
+                typeId = 30;
+                endpoint = 'GetGameIssue';
+            } else if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;
+                endpoint = 'GetGameIssue';
+            } else if (this.gameType === 'WINGO_5MIN') {
+                typeId = 3;
+                endpoint = 'GetGameIssue';
+            } else if (this.gameType === 'TRX_3MIN') {
+                typeId = 2; // TRX 3 MIN အတွက် typeId 2
+                endpoint = 'GetTrxGameIssue';
             } else {
-                console.log(`ERROR GETTING ISSUE FOR ${this.gameType}:`, result.msg);
-                return "";
+                typeId = 1;
+                endpoint = 'GetGameIssue';
             }
-        } else {
-            console.log(`HTTP ERROR FOR ${this.gameType}:`, response.status);
-            return "";
-        }
-    } catch (error) {
-        console.error(`ERROR GETTING CURRENT ISSUE FOR ${this.gameType}:`, error.message);
-        
-        // More detailed error logging
-        if (error.response) {
-            console.error('Error response data:', error.response.data);
-            console.error('Error response status:', error.response.status);
-            console.error('Error response headers:', error.response.headers);
-        } else if (error.request) {
-            console.error('No response received:', error.request);
-        } else {
-            console.error('Error setting up request:', error.message);
-        }
-        
-        return "";
-    }
-}
 
-// PlaceBet method ကိုလည်း issue ရှာတဲ့အပိုင်းကို ပြင်ဆင်ပါမယ်
-async placeBet(amount, betType) {
-    try {
-        console.log(`ATTEMPTING TO PLACE BET - GAME: ${this.gameType}, AMOUNT: ${amount}, BETTYPE: ${betType}`);
-        
-        // First, try to get current issue multiple times with retry
-        let issueId = "";
-        let retryCount = 0;
-        const maxRetries = 3;
-        
-        while (!issueId && retryCount < maxRetries) {
-            issueId = await this.getCurrentIssue();
-            if (!issueId) {
-                console.log(`Failed to get issue (attempt ${retryCount + 1}/${maxRetries})`);
-                retryCount++;
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-            }
-        }
-        
-        if (!issueId) {
-            console.log(`FAILED TO GET ISSUE AFTER ${maxRetries} ATTEMPTS`);
-            return { 
-                success: false, 
-                message: "Failed to get current issue after multiple attempts. Please check your game type and try again.", 
-                issueId: "", 
-                potentialProfit: 0 
-            };
-        }
-
-        console.log(`SUCCESSFULLY GOT ISSUE: ${issueId} FOR ${this.gameType}`);
-        console.log(`PLACING BET - ISSUE: ${issueId}, AMOUNT: ${amount}, BETTYPE: ${betType}, GAMETYPE: ${this.gameType}, PLATFORM: ${this.platform}`);
-
-        let requestBody;
-        
-        // 777 PLATFORM CALCULATION
-        const baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
-        const betCount = Math.floor(amount / baseAmount);
-        const isColourBet = [10, 11, 12].includes(betType);
-        
-        let typeId, gameType;
-        
-        // SET TYPEID BASED ON GAME TYPE
-        if (this.gameType === 'TRX') {
-            typeId = 13;
-            gameType = 2;
-        } else if (this.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
-            
-            gameType = 2;
-        } else if (this.gameType === 'WINGO_30S') {
-            typeId = 30;
-            gameType = isColourBet ? 0 : 2;
-        } else if (this.gameType === 'WINGO_3MIN') {
-            typeId = 2;
-            gameType = isColourBet ? 0 : 2;
-        } else if (this.gameType === 'WINGO_5MIN') {
-            typeId = 3;
-            gameType = isColourBet ? 0 : 2;
-        } else {
-            typeId = 1;
-            gameType = isColourBet ? 0 : 2;
-        }
-
-        console.log(`BET PARAMS - TYPEID: ${typeId}, GAMETYPE: ${gameType}, ISCOLOURBET: ${isColourBet}`);
-
-        requestBody = {
-            "typeId": typeId,
-            "issuenumber": issueId,
-            "language": 0,
-            "gameType": gameType,
-            "amount": baseAmount,
-            "betCount": betCount,
-            "selectType": betType,
-            "random": this.randomKey(),
-            "timestamp": Math.floor(Date.now() / 1000)
-        };
-
-        console.log(`777 PLATFORM CALCULATION - AMOUNT: ${amount}, BASEAMOUNT: ${baseAmount}, BETCOUNT: ${betCount}, TOTAL: ${baseAmount * betCount}`);
-
-        requestBody.signature = this.signMd5(requestBody);
-
-        console.log('REQUEST BODY:', JSON.stringify(requestBody, null, 2));
-
-        let endpoint;
-        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') { // TRX_3MIN ကိုထည့်ပါ
-            endpoint = 'GameTrxBetting';
-        } else {
-            endpoint = 'GameBetting';
-        }
-
-        console.log(`CALLING ENDPOINT: ${this.baseUrl}${endpoint}`);
-
-        const response = await axios.post(`${this.baseUrl}${endpoint}`, requestBody, {
-            headers: this.headers,
-            timeout: 15000
-        });
-
-        console.log('API RESPONSE:', JSON.stringify(response.data, null, 2));
-
-        if (response.status === 200) {
-            const result = response.data;
-            
-            if (result.code === 0 || result.msgCode === 0 || result.success === true) {
-                let potentialProfit;
-                
-                // NEW PAYOUT CALCULATION BASED ON PROVIDED RULES
-                if (betType === 10) { // RED
-                    const contractAmount = Math.floor(amount * 0.98);
-                    potentialProfit = contractAmount * 2;
-                } else if (betType === 11) { // GREEN
-                    const contractAmount = Math.floor(amount * 0.98);
-                    potentialProfit = contractAmount * 2;
-                } else if (betType === 12) { // VIOLET
-                    const contractAmount = Math.floor(amount * 0.98);
-                    potentialProfit = contractAmount * 2;
-                } else { // BIG OR SMALL
-                    potentialProfit = Math.floor(amount * 0.96);
-                }
-                
-                return { 
-                    success: true, 
-                    message: "Bet placed successfully", 
-                    issueId, 
-                    potentialProfit, 
-                    actualAmount: amount,
-                    contractAmount: Math.floor(amount * 0.98) // 2% SERVICE FEE DEDUCTED
-                };
-            } else {
-                const errorMsg = result.msg || result.message || result.error || 'Bet failed';
-                console.log('BET API ERROR:', errorMsg);
-                
-                // Error handling remains the same
-                // ...
-            }
-        } else {
-            console.log('HTTP ERROR:', response.status, response.statusText);
-            return { 
-                success: false, 
-                message: `API connection failed: ${response.status}`, 
-                issueId, 
-                potentialProfit: 0 
-            };
-        }
-    } catch (error) {
-        console.log('BETTING ERROR:', error.message);
-        // Error handling remains the same
-        // ...
-    }
-}
-
-    async getRecentResults(count = 10) {
-    try {
-        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') { // TRX_3MIN ကိုထည့်ပါ
             const body = {
-                "typeId": this.gameType === 'TRX_3MIN' ? 2 : 13, // typeId အလိုက်ပြောင်း
+                "typeId": typeId,
                 "language": 0,
                 "random": "b05034ba4a2642009350ee863f29e2e9",
                 "timestamp": Math.floor(Date.now() / 1000)
             };
+            body.signature = this.signMd5(body);
+
+            console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, TYPEID: ${typeId}`);
+
+            const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            console.log(`ISSUE RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
+
+            if (response.status === 200) {
+                const result = response.data;
+                
+                if (result.msgCode === 0) {
+                    let issueNumber = '';
+                    
+                    // TRX GAMES
+                    if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') {
+                        issueNumber = result.data?.predraw?.issueNumber || 
+                                     result.data?.issueNumber || 
+                                     result.issueNumber || '';
+                    } 
+                    // WINGO 30S GAME
+                    else if (this.gameType === 'WINGO_30S') {
+                        if (result.data) {
+                            issueNumber = result.data.issueNumber || 
+                                         result.data.predraw?.issueNumber || 
+                                         result.data.current?.issueNumber || '';
+                            
+                            if (!issueNumber) {
+                                if (result.data.currentIssue) {
+                                    issueNumber = result.data.currentIssue;
+                                } else if (result.data.issue) {
+                                    issueNumber = result.data.issue;
+                                }
+                            }
+                        }
+                        
+                        if (!issueNumber) {
+                            issueNumber = result.issueNumber || result.issue || '';
+                        }
+                    }
+                    // OTHER WINGO GAMES
+                    else {
+                        issueNumber = result.data?.issueNumber || 
+                                     result.data?.predraw?.issueNumber || 
+                                     result.issueNumber || 
+                                     result.data?.current?.issueNumber || '';
+                        
+                        if (!issueNumber && result.data) {
+                            const dataStr = JSON.stringify(result.data);
+                            const issueMatch = dataStr.match(/"issueNumber"\s*:\s*"(\d+)"/);
+                            if (issueMatch) {
+                                issueNumber = issueMatch[1];
+                            }
+                        }
+                    }
+                    
+                    console.log(`CURRENT ISSUE FOR ${this.gameType}: ${issueNumber}`);
+                    return issueNumber;
+                } else {
+                    console.log(`ERROR GETTING ISSUE FOR ${this.gameType}:`, result.msg);
+                    return "";
+                }
+            } else {
+                console.log(`HTTP ERROR FOR ${this.gameType}:`, response.status);
+                return "";
+            }
+        } catch (error) {
+            console.error(`ERROR GETTING CURRENT ISSUE FOR ${this.gameType}:`, error.message);
+            
+            if (error.response) {
+                console.error('Error response data:', error.response.data);
+                console.error('Error response status:', error.response.status);
+                console.error('Error response headers:', error.response.headers);
+            } else if (error.request) {
+                console.error('No response received:', error.request);
+            } else {
+                console.error('Error setting up request:', error.message);
+            }
+            
+            return "";
+        }
+    }
+
+    async placeBet(amount, betType) {
+        try {
+            console.log(`ATTEMPTING TO PLACE BET - GAME: ${this.gameType}, AMOUNT: ${amount}, BETTYPE: ${betType}`);
+            
+            let issueId = "";
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (!issueId && retryCount < maxRetries) {
+                issueId = await this.getCurrentIssue();
+                if (!issueId) {
+                    console.log(`Failed to get issue (attempt ${retryCount + 1}/${maxRetries})`);
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+            
+            if (!issueId) {
+                console.log(`FAILED TO GET ISSUE AFTER ${maxRetries} ATTEMPTS`);
+                return { 
+                    success: false, 
+                    message: "Failed to get current issue after multiple attempts. Please check your game type and try again.", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            }
+
+            console.log(`SUCCESSFULLY GOT ISSUE: ${issueId} FOR ${this.gameType}`);
+            console.log(`PLACING BET - ISSUE: ${issueId}, AMOUNT: ${amount}, BETTYPE: ${betType}, GAMETYPE: ${this.gameType}, PLATFORM: ${this.platform}`);
+
+            let requestBody;
+            
+            const baseAmount = amount < 10000 ? 10 : Math.pow(10, amount.toString().length - 2);
+            const betCount = Math.floor(amount / baseAmount);
+            const isColourBet = [10, 11, 12].includes(betType);
+            
+            let typeId, gameType;
+            
+            if (this.gameType === 'TRX') {
+                typeId = 13;
+                gameType = 2;
+            } else if (this.gameType === 'TRX_3MIN') {
+                typeId = 2;
+                gameType = 2;
+            } else if (this.gameType === 'WINGO_30S') {
+                typeId = 30;
+                gameType = isColourBet ? 0 : 2;
+            } else if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;
+                gameType = isColourBet ? 0 : 2;
+            } else if (this.gameType === 'WINGO_5MIN') {
+                typeId = 3;
+                gameType = isColourBet ? 0 : 2;
+            } else {
+                typeId = 1;
+                gameType = isColourBet ? 0 : 2;
+            }
+
+            console.log(`BET PARAMS - TYPEID: ${typeId}, GAMETYPE: ${gameType}, ISCOLOURBET: ${isColourBet}`);
+
+            requestBody = {
+                "typeId": typeId,
+                "issuenumber": issueId,
+                "language": 0,
+                "gameType": gameType,
+                "amount": baseAmount,
+                "betCount": betCount,
+                "selectType": betType,
+                "random": this.randomKey(),
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+
+            console.log(`777 PLATFORM CALCULATION - AMOUNT: ${amount}, BASEAMOUNT: ${baseAmount}, BETCOUNT: ${betCount}, TOTAL: ${baseAmount * betCount}`);
+
+            requestBody.signature = this.signMd5(requestBody);
+
+            console.log('REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+
+            let endpoint;
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') {
+                endpoint = 'GameTrxBetting';
+            } else {
+                endpoint = 'GameBetting';
+            }
+
+            console.log(`CALLING ENDPOINT: ${this.baseUrl}${endpoint}`);
+
+            const response = await axios.post(`${this.baseUrl}${endpoint}`, requestBody, {
+                headers: this.headers,
+                timeout: 15000
+            });
+
+            console.log('API RESPONSE:', JSON.stringify(response.data, null, 2));
+
+            if (response.status === 200) {
+                const result = response.data;
+                
+                if (result.code === 0 || result.msgCode === 0 || result.success === true) {
+                    let potentialProfit;
+                    
+                    if (betType === 10) {
+                        const contractAmount = Math.floor(amount * 0.98);
+                        potentialProfit = contractAmount * 2;
+                    } else if (betType === 11) {
+                        const contractAmount = Math.floor(amount * 0.98);
+                        potentialProfit = contractAmount * 2;
+                    } else if (betType === 12) {
+                        const contractAmount = Math.floor(amount * 0.98);
+                        potentialProfit = contractAmount * 2;
+                    } else {
+                        potentialProfit = Math.floor(amount * 0.96);
+                    }
+                    
+                    return { 
+                        success: true, 
+                        message: "Bet placed successfully", 
+                        issueId, 
+                        potentialProfit, 
+                        actualAmount: amount,
+                        contractAmount: Math.floor(amount * 0.98)
+                    };
+                } else {
+                    const errorMsg = result.msg || result.message || result.error || 'Bet failed';
+                    console.log('BET API ERROR:', errorMsg);
+                    
+                    if (errorMsg.includes('balance') || errorMsg.includes('amount')) {
+                        return { 
+                            success: false, 
+                            message: "Insufficient balance or amount error", 
+                            issueId, 
+                            potentialProfit: 0 
+                        };
+                    } else if (errorMsg.includes('issue')) {
+                        return { 
+                            success: false, 
+                            message: "Issue has already closed", 
+                            issueId, 
+                            potentialProfit: 0 
+                        };
+                    } else {
+                        return { 
+                            success: false, 
+                            message: errorMsg, 
+                            issueId, 
+                            potentialProfit: 0 
+                        };
+                    }
+                }
+            } else {
+                console.log('HTTP ERROR:', response.status, response.statusText);
+                return { 
+                    success: false, 
+                    message: `API connection failed: ${response.status}`, 
+                    issueId, 
+                    potentialProfit: 0 
+                };
+            }
+        } catch (error) {
+            console.log('BETTING ERROR:', error.message);
+            
+            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+                return { 
+                    success: false, 
+                    message: "Connection timeout or server error. Please try again.", 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            } else if (error.response) {
+                return { 
+                    success: false, 
+                    message: `API error: ${error.response.status}`, 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            } else {
+                return { 
+                    success: false, 
+                    message: `Betting error: ${error.message}`, 
+                    issueId: "", 
+                    potentialProfit: 0 
+                };
+            }
+        }
+    }
+
+    async getRecentResults(count = 10) {
+        try {
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') {
+                const typeId = this.gameType === 'TRX_3MIN' ? 2 : 13;
+                const body = {
+                    "typeId": typeId,
+                    "language": 0,
+                    "random": "b05034ba4a2642009350ee863f29e2e9",
+                    "timestamp": Math.floor(Date.now() / 1000)
+                };
                 body.signature = this.signMd5(body);
 
                 const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
@@ -616,7 +646,6 @@ async placeBet(amount, betType) {
                     }
                 }
             } else {
-                // WINGO_30S, WINGO_3MIN, WINGO_5MIN, WINGO NORMAL FOR TYPEID
                 let typeId;
                 if (this.gameType === 'WINGO_30S') {
                     typeId = 30;
@@ -733,7 +762,7 @@ class AutoLotteryBot {
             userSession = { gameType: 'WINGO' };
         }
         
-        if (userSession && userSession.gameType === 'TRX') {
+        if (userSession && (userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN')) {
             return {
                 keyboard: [
                     [{ text: "Login" }],
@@ -785,18 +814,17 @@ class AutoLotteryBot {
         };
     }
 
-    // Game type keyboard မှာ TRX 3 MIN ထည့်ပါ
-getGameTypeKeyboard() {
-    return {
-        keyboard: [
-            [{ text: "WINGO" }, { text: "TRX" }],
-            [{ text: "WINGO 30S" }],[{ text: "WINGO 3 MIN" }],[{ text: "WINGO 5 MIN" }],
-            [{ text: "TRX 3 MIN" }], // အသစ်ထည့်ပါ
-            [{ text: "Back" }]
-        ],
-        resize_keyboard: true
-    };
-}
+    getGameTypeKeyboard() {
+        return {
+            keyboard: [
+                [{ text: "WINGO" }, { text: "TRX" }],
+                [{ text: "WINGO 30S" }],[{ text: "WINGO 3 MIN" }],[{ text: "WINGO 5 MIN" }],
+                [{ text: "TRX 3 MIN" }],
+                [{ text: "Back" }]
+            ],
+            resize_keyboard: true
+        };
+    }
 
     getBsPatternKeyboard() {
         return {
@@ -967,6 +995,7 @@ Manual Features:
 - Game Results & History
 - WINGO/TRX Game Switching
 - WINGO 30S/3MIN/5MIN Switching
+- TRX 3 MIN Support
 
 Press Run Bot to start auto betting!`;
 
@@ -1206,6 +1235,7 @@ Press Run Bot to start auto betting!`;
                     await this.clearColourPattern(chatId, userId);
                     break;
 
+                case "TRX 3 MIN":
                 case "WINGO 30S":
                 case "WINGO 3 MIN":
                 case "WINGO 5 MIN":
@@ -1213,15 +1243,6 @@ Press Run Bot to start auto betting!`;
                 case "TRX":
                     await this.handleSetGameType(chatId, userId, text);
                     break;
-					
-					        case "TRX 3 MIN": // အသစ်ထည့်ပါ
-        case "TRX":
-        case "WINGO":
-        case "WINGO 30S":
-        case "WINGO 3 MIN":
-        case "WINGO 5 MIN":
-            await this.handleSetGameType(chatId, userId, text);
-            break;
 
                 default:
                     await this.bot.sendMessage(chatId, "Please use the buttons below to navigate.", {
@@ -1235,25 +1256,25 @@ Press Run Bot to start auto betting!`;
     }
 
     async showGameTypeMenu(chatId, userId) {
-    const userSession = this.ensureUserSession(userId);
-    const currentGameType = userSession.gameType || 'WINGO';
-    
-    let gameTypeInfo = "";
-    if (currentGameType === 'TRX') {
-        gameTypeInfo = "\n\nTRX Game: Supports BIG/SMALL Only (No colour betting)";
-    } else if (currentGameType === 'TRX_3MIN') {
-        gameTypeInfo = "\n\nTRX 3 MIN: Supports BIG/SMALL Only (No colour betting)";
-    } else if (currentGameType === 'WINGO_30S') {
-        gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting";
-    } else if (currentGameType === 'WINGO_3MIN') {
-        gameTypeInfo = "\n\nWINGO 3 MIN: Supports Bot BIG/SMALL and Colour betting";
-    } else if (currentGameType === 'WINGO_5MIN') {
-        gameTypeInfo = "\n\nWINGO 5 MIN: Supports Bot BIG/SMALL and Colour betting";
-    } else {
-        gameTypeInfo = "\n\nWINGO: Supports Bot BIG/SMALL and Colour betting";
-    }
-    
-    const gameTypeText = `Current Game Type: ${currentGameType}${gameTypeInfo}
+        const userSession = this.ensureUserSession(userId);
+        const currentGameType = userSession.gameType || 'WINGO';
+        
+        let gameTypeInfo = "";
+        if (currentGameType === 'TRX') {
+            gameTypeInfo = "\n\nTRX Game: Supports BIG/SMALL Only (No colour betting)";
+        } else if (currentGameType === 'TRX_3MIN') {
+            gameTypeInfo = "\n\nTRX 3 MIN: Supports BIG/SMALL Only (No colour betting)";
+        } else if (currentGameType === 'WINGO_30S') {
+            gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting";
+        } else if (currentGameType === 'WINGO_3MIN') {
+            gameTypeInfo = "\n\nWINGO 3 MIN: Supports Bot BIG/SMALL and Colour betting";
+        } else if (currentGameType === 'WINGO_5MIN') {
+            gameTypeInfo = "\n\nWINGO 5 MIN: Supports Bot BIG/SMALL and Colour betting";
+        } else {
+            gameTypeInfo = "\n\nWINGO: Supports Bot BIG/SMALL and Colour betting";
+        }
+        
+        const gameTypeText = `Current Game Type: ${currentGameType}${gameTypeInfo}
 
 Select Game Type:
 • WINGO: (BIG/SMALL + Colours) Support
@@ -1265,29 +1286,28 @@ Select Game Type:
 
 Choose your game type:`;
 
-    await this.bot.sendMessage(chatId, gameTypeText, {
-        reply_markup: this.getGameTypeKeyboard()
-    });
-}
+        await this.bot.sendMessage(chatId, gameTypeText, {
+            reply_markup: this.getGameTypeKeyboard()
+        });
+    }
 
     async handleSetGameType(chatId, userId, text) {
-    try {
-        const userSession = this.ensureUserSession(userId);
-        let gameType = text.toUpperCase();
-        
-        if (text === "WINGO 30S") {
-            gameType = "WINGO_30S";
-        } else if (text === "WINGO 3 MIN") {
-            gameType = "WINGO_3MIN";
-        } else if (text === "WINGO 5 MIN") {
-            gameType = "WINGO_5MIN";
-        } else if (text === "TRX 3 MIN") { // အသစ်ထည့်ပါ
-            gameType = "TRX_3MIN";
-        }
-        
-        if (gameType === 'WINGO' || gameType === 'TRX' || gameType === 'WINGO_30S' || 
-            gameType === 'WINGO_3MIN' || gameType === 'WINGO_5MIN' || gameType === 'TRX_3MIN') {
-           
+        try {
+            const userSession = this.ensureUserSession(userId);
+            let gameType = text.toUpperCase();
+            
+            if (text === "WINGO 30S") {
+                gameType = "WINGO_30S";
+            } else if (text === "WINGO 3 MIN") {
+                gameType = "WINGO_3MIN";
+            } else if (text === "WINGO 5 MIN") {
+                gameType = "WINGO_5MIN";
+            } else if (text === "TRX 3 MIN") {
+                gameType = "TRX_3MIN";
+            }
+            
+            if (gameType === 'WINGO' || gameType === 'TRX' || gameType === 'WINGO_30S' || 
+                gameType === 'WINGO_3MIN' || gameType === 'WINGO_5MIN' || gameType === 'TRX_3MIN') {
                 userSession.gameType = gameType;
                 await this.saveUserSetting(userId, 'game_type', gameType);
                 
@@ -1302,7 +1322,7 @@ Choose your game type:`;
                     reply_markup: this.getMainKeyboard()
                 });
             } else {
-                await this.bot.sendMessage(chatId, "Invalid game type. Please select WINGO, TRX, WINGO 30S, WINGO 3 MIN or WINGO 5 MIN.", {
+                await this.bot.sendMessage(chatId, "Invalid game type. Please select from available options.", {
                     reply_markup: this.getGameTypeKeyboard()
                 });
             }
@@ -1541,8 +1561,8 @@ Last update: ${getMyanmarTime()}`;
         }
 
         try {
-            if (userSession.gameType === 'TRX') {
-                await this.bot.sendMessage(chatId, `TRX Game Notice\n\nTRX game does not support colour betting.\n\nPlease use:\n• Bet BIG\n• Bet SMALL\n\nOr switch to WINGO/WINGO 30S/WINGO 3 MIN for colour betting.`);
+            if (userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN') {
+                await this.bot.sendMessage(chatId, `${userSession.gameType} Game Notice\n\n${userSession.gameType} game does not support colour betting.\n\nPlease use:\n• Bet BIG\n• Bet SMALL\n\nOr switch to WINGO/WINGO 30S/WINGO 3 MIN for colour betting.`);
                 return;
             }
 
@@ -1567,18 +1587,17 @@ Last update: ${getMyanmarTime()}`;
                 return;
             }
 
-            // NEW PAYOUT CALCULATION
-            const contractAmount = Math.floor(amount * 0.98); // 2% service fee deducted
+            const contractAmount = Math.floor(amount * 0.98);
             let potentialProfit, payoutInfo;
             
             if (colour === "RED") {
-                potentialProfit = contractAmount * 2; // 2,4,6,8 win
+                potentialProfit = contractAmount * 2;
                 payoutInfo = "Win 2x on 2,4,6,8 | Win 1.5x on 0";
             } else if (colour === "GREEN") {
-                potentialProfit = contractAmount * 2; // 1,3,7,9 win  
+                potentialProfit = contractAmount * 2;
                 payoutInfo = "Win 2x on 1,3,7,9 | Win 1.5x on 5";
             } else if (colour === "VIOLET") {
-                potentialProfit = contractAmount * 2; // 0,5 win
+                potentialProfit = contractAmount * 2;
                 payoutInfo = "Win 2x on 0,5";
             }
 
@@ -1744,7 +1763,7 @@ Last update: ${getMyanmarTime()}`;
 
             const betTypeStr = pendingBet.bet_type;
             const amount = pendingBet.amount;
-            const contractAmount = Math.floor(amount * 0.98); // 2% service fee
+            const contractAmount = Math.floor(amount * 0.98);
 
             const results = await userSession.apiInstance.getRecentResults(20);
             console.log(`Retrieved ${results.length} recent results for user ${userId}`);
@@ -1769,7 +1788,7 @@ Last update: ${getMyanmarTime()}`;
                     resultNumber = result.number || 'N/A';
                     console.log(`Found matching result for issue ${issue}: number ${resultNumber}`);
                     
-                    if (gameType === 'TRX') {
+                    if (gameType === 'TRX' || gameType === 'TRX_3MIN') {
                         if (['0','1','2','3','4'].includes(resultNumber)) {
                             resultType = "SMALL";
                         } else {
@@ -1805,7 +1824,6 @@ Last update: ${getMyanmarTime()}`;
 
                     console.log(`Result analysis - Type: ${resultType}, Colour: ${resultColour}`);
 
-                    // CHECK BET RESULT WITH NEW COLOUR BETTING RULES
                     if (betTypeStr.includes("BIG")) {
                         if (resultType === "BIG") {
                             betResult = "WIN";
@@ -1829,11 +1847,11 @@ Last update: ${getMyanmarTime()}`;
                     } else if (betTypeStr.includes("RED")) {
                         if (['2','4','6','8'].includes(resultNumber)) {
                             betResult = "WIN";
-                            profitLoss = contractAmount * 2; // Win 2x
+                            profitLoss = contractAmount * 2;
                             console.log(`RED bet WON - 2,4,6,8`);
                         } else if (resultNumber === '0') {
                             betResult = "WIN";
-                            profitLoss = Math.floor(contractAmount * 1.5); // Win 1.5x
+                            profitLoss = Math.floor(contractAmount * 1.5);
                             console.log(`RED bet WON - 0 (1.5x)`);
                         } else {
                             betResult = "LOSE";
@@ -1843,11 +1861,11 @@ Last update: ${getMyanmarTime()}`;
                     } else if (betTypeStr.includes("GREEN")) {
                         if (['1','3','7','9'].includes(resultNumber)) {
                             betResult = "WIN";
-                            profitLoss = contractAmount * 2; // Win 2x
+                            profitLoss = contractAmount * 2;
                             console.log(`GREEN bet WON - 1,3,7,9`);
                         } else if (resultNumber === '5') {
                             betResult = "WIN";
-                            profitLoss = Math.floor(contractAmount * 1.5); // Win 1.5x
+                            profitLoss = Math.floor(contractAmount * 1.5);
                             console.log(`GREEN bet WON - 5 (1.5x)`);
                         } else {
                             betResult = "LOSE";
@@ -1857,7 +1875,7 @@ Last update: ${getMyanmarTime()}`;
                     } else if (betTypeStr.includes("VIOLET")) {
                         if (['0','5'].includes(resultNumber)) {
                             betResult = "WIN";
-                            profitLoss = contractAmount * 2; // Win 2x
+                            profitLoss = contractAmount * 2;
                             console.log(`VIOLET bet WON - 0,5`);
                         } else {
                             betResult = "LOSE";
@@ -1879,26 +1897,22 @@ Last update: ${getMyanmarTime()}`;
                 return;
             }
 
-            // SAVE TO BET HISTORY
             await this.db.run(
                 'INSERT INTO bet_history (user_id, platform, issue, bet_type, amount, result, profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?)',
                 [userId, platform, issue, betTypeStr, amount, betResult, profitLoss]
             );
             console.log(`Bet history saved for user ${userId}`);
 
-            // REMOVE FROM PENDING BETS
             await this.db.run(
                 'DELETE FROM pending_bets WHERE user_id = ? AND platform = ? AND issue = ?',
                 [userId, platform, issue]
             );
             console.log(`Pending bet removed for user ${userId}`);
 
-            // GET CURRENT BOT SESSION FOR TOTAL PROFIT
             const botSession = await this.getBotSession(userId);
             const totalProfitBefore = botSession.total_profit || 0;
             const newTotalProfit = totalProfitBefore + profitLoss;
 
-            // UPDATE BOT STATS WITH NEW TOTAL PROFIT
             await this.updateBotStats(userId, profitLoss, newTotalProfit);
             console.log(`Bot stats updated for user ${userId}, new total profit: ${newTotalProfit}`);
 
@@ -1909,7 +1923,6 @@ Last update: ${getMyanmarTime()}`;
             console.log(`Reset waitingForResults for user ${userId}`);
 
             console.log(`Sending result message to user ${userId}`);
-            // SEND RESULT MESSAGE WITH TOTAL PROFIT
             await this.sendResultMessage(userId, issue, betTypeStr, amount, betResult, profitLoss, resultNumber, resultType, resultColour, newTotalProfit);
 
             console.log(`Bet result processed for user ${userId}: ${betResult} on issue ${issue}, Profit: ${profitLoss}`);
@@ -1997,14 +2010,13 @@ Last update: ${getMyanmarTime()}`;
 
             let newIndex;
             if (result === "WIN") {
-                newIndex = 0; // Reset to first step on win
+                newIndex = 0;
                 console.log(`Win - Reset sequence to step 1`);
             } else {
-                newIndex = currentIndex + 1; // Move to next step on loss
+                newIndex = currentIndex + 1;
                 
-                // Sequence ဆုံးရင် ပြန်စမယ်
                 if (newIndex >= amounts.length) {
-                    newIndex = 0; // Reset to beginning if at the end
+                    newIndex = 0;
                     console.log(`Loss - Reached end of sequence, reset to step 1`);
                 } else {
                     console.log(`Loss - Move to next step: ${currentIndex} -> ${newIndex}`);
@@ -2027,7 +2039,6 @@ Last update: ${getMyanmarTime()}`;
             const session = await this.getBotSession(userId);
             const newTotalBets = session.total_bets + 1;
             
-            // If totalProfit is provided, use it, otherwise calculate
             const newTotalProfit = totalProfit !== null ? totalProfit : session.total_profit + profit;
             
             let newSessionProfit = session.session_profit;
@@ -2135,14 +2146,15 @@ Last update: ${getMyanmarTime()}`;
                 if (currentIssue && currentIssue !== lastIssue) {
                     console.log(`New issue detected: ${currentIssue} for user ${userId}`);
                     
-                    // WINGO 30S, 3 MIN, 5 MIN အတွက် ပိုပြီး စောင့်မယ်
                     let delay;
                     if (userSession.gameType === 'WINGO_30S') {
-                        delay = 2000; // 30S အတွက် 2 စက္ကန့်စောင့်
+                        delay = 2000;
                     } else if (userSession.gameType === 'WINGO_3MIN') {
                         delay = 5000;
                     } else if (userSession.gameType === 'WINGO_5MIN') {
-                        delay = 7000; // WINGO 5 MIN အတွက် နည်းနည်းပိုစောင့်
+                        delay = 7000;
+                    } else if (userSession.gameType === 'TRX_3MIN') {
+                        delay = 5000;
                     } else {
                         delay = 3000;
                     }
@@ -2207,7 +2219,6 @@ Last update: ${getMyanmarTime()}`;
         console.log(`Auto betting for user ${userId}, mode: ${randomMode}, game: ${userSession.gameType}`);
 
         try {
-            // DETERMINE BET TYPE BASED ON RANDOM MODE
             switch(randomMode) {
                 case 'big':
                     betType = 13;
@@ -2232,21 +2243,19 @@ Last update: ${getMyanmarTime()}`;
                     betType = colourResult.betType;
                     betTypeStr = colourResult.betTypeStr;
                     break;
-                default: // random bot
+                default:
                     betType = Math.random() < 0.5 ? 13 : 14;
                     betTypeStr = betType === 13 ? "BIG" : "SMALL";
             }
 
             console.log(`Selected bet type: ${betType} (${betTypeStr}) for user ${userId}`);
 
-            // TRX game မှာ Colour bet ကို BIG/SMALL ပြောင်းပေးခြင်း
-            if (userSession.gameType === 'TRX' && (betType === 10 || betType === 11 || betType === 12)) {
-                console.log(`TRX game - Converting colour bet to BIG/SMALL for user ${userId}`);
+            if ((userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN') && (betType === 10 || betType === 11 || betType === 12)) {
+                console.log(`${userSession.gameType} game - Converting colour bet to BIG/SMALL for user ${userId}`);
                 betType = Math.random() < 0.5 ? 13 : 14;
                 betTypeStr = `${betType === 13 ? 'BIG' : 'SMALL'} (Colour Formula Converted)`;
             }
 
-            // BET AMOUNT ကို current bet sequence index နဲ့ ရယူမယ်
             const amount = await this.getCurrentBetAmount(userId);
             console.log(`Bet amount for user ${userId}: ${amount} (from sequence)`);
 
@@ -2260,7 +2269,6 @@ Last update: ${getMyanmarTime()}`;
                 return;
             }
 
-            // CHECK PROFIT/LOSS TARGETS
             const botSession = await this.getBotSession(userId);
             const profitTarget = await this.getUserSetting(userId, 'profit_target', 0);
             const lossTarget = await this.getUserSetting(userId, 'loss_target', 0);
@@ -2285,7 +2293,6 @@ Last update: ${getMyanmarTime()}`;
                 return;
             }
 
-            // SEND BETTING MESSAGE WITH SEQUENCE INFO
             const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
             const betSequence = await this.getUserSetting(userId, 'bet_sequence', '100,300,700,1600,3200,7600,16000,32000');
             const amounts = betSequence.split(',').map(x => parseInt(x.trim()));
@@ -2312,7 +2319,6 @@ Last update: ${getMyanmarTime()}`;
             } else {
                 console.log(`Bet failed for user ${userId}: ${result.message}`);
                 
-                // AMOUNT ERROR ဖြစ်ရင် sequence ကို reset လုပ်မယ်
                 if (result.message.includes('amount') || result.message.includes('betting')) {
                     console.log(`Amount error detected, resetting bet sequence for user ${userId}`);
                     await this.saveUserSetting(userId, 'current_bet_index', 0);
@@ -2324,7 +2330,6 @@ Last update: ${getMyanmarTime()}`;
                     await this.bot.sendMessage(userId, errorMessage);
                 }
                 
-                // RESET WAITING STATE ON FAILURE
                 waitingForResults[userId] = false;
             }
         } catch (error) {
@@ -2363,11 +2368,9 @@ Last update: ${getMyanmarTime()}`;
 
             console.log(`Getting bet amount for user ${userId}: index=${currentIndex}, sequence=${betSequence}`);
 
-            // SEQUENCE ဆုံးသွားရင် ပြန်စမယ်
             const actualIndex = currentIndex >= amounts.length ? 0 : currentIndex;
             const amount = amounts[actualIndex] || amounts[0] || 100;
 
-            // INDEX မှားနေရင် ပြန်ချိန်းမယ်
             if (currentIndex >= amounts.length) {
                 await this.saveUserSetting(userId, 'current_bet_index', 0);
                 console.log(`Corrected invalid index: ${currentIndex} -> 0`);
@@ -2378,7 +2381,7 @@ Last update: ${getMyanmarTime()}`;
 
         } catch (error) {
             console.error(`Error getting current bet amount for ${userId}:`, error);
-            return 100; // fallback amount
+            return 100;
         }
     }
 
@@ -2633,26 +2636,26 @@ Last update: ${getMyanmarTime()}`;
     }
 
     async showBotSettings(chatId, userId) {
-    try {
-        const userSession = this.ensureUserSession(userId);
-        const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
-        const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
-        const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
-        
-        let defaultSequence;
-        if (userSession.gameType === 'WINGO_30S') {
-            defaultSequence = '50,100,200,400,800,1600,3200,6400';
-        } else if (userSession.gameType === 'WINGO_3MIN') {
-            defaultSequence = '100,500,1000,5000';
-        } else if (userSession.gameType === 'WINGO_5MIN') {
-            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-        } else if (userSession.gameType === 'TRX') {
-            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-        } else if (userSession.gameType === 'TRX_3MIN') { // အသစ်ထည့်ပါ
-            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-        } else {
-            defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
-        }
+        try {
+            const userSession = this.ensureUserSession(userId);
+            const randomMode = await this.getUserSetting(userId, 'random_betting', 'bot');
+            const betSequence = await this.getUserSetting(userId, 'bet_sequence', '');
+            const currentIndex = await this.getUserSetting(userId, 'current_bet_index', 0);
+            
+            let defaultSequence;
+            if (userSession.gameType === 'WINGO_30S') {
+                defaultSequence = '50,100,200,400,800,1600,3200,6400';
+            } else if (userSession.gameType === 'WINGO_3MIN') {
+                defaultSequence = '100,500,1000,5000';
+            } else if (userSession.gameType === 'WINGO_5MIN') {
+                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+            } else if (userSession.gameType === 'TRX') {
+                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+            } else if (userSession.gameType === 'TRX_3MIN') {
+                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+            } else {
+                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+            }
             
             const currentAmount = await this.getCurrentBetAmount(userId);
             
@@ -2992,6 +2995,9 @@ Choose your betting mode:`;
             } else if (gameType === 'TRX') {
                 const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
                 validationMessage = `\n\nTRX Recommended: ${recommendedAmounts.join(', ')}`;
+            } else if (gameType === 'TRX_3MIN') {
+                const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+                validationMessage = `\n\nTRX 3MIN Recommended: ${recommendedAmounts.join(', ')}`;
             } else {
                 const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
                 validationMessage = `\n\nWINGO Recommended: ${recommendedAmounts.join(', ')}`;
@@ -3362,7 +3368,6 @@ Choose your betting mode:`;
         }
 
         try {
-            // Get all users from database
             const users = await this.db.all('SELECT user_id FROM users');
             const totalUsers = users.length;
             
@@ -3385,7 +3390,6 @@ Choose your betting mode:`;
                     });
                     successCount++;
                     
-                    // Update progress every 10 users
                     if (i % 10 === 0 || i === users.length - 1) {
                         const progress = Math.floor((i + 1) / totalUsers * 100);
                         await this.bot.editMessageText(
@@ -3397,7 +3401,6 @@ Choose your betting mode:`;
                         );
                     }
                     
-                    // Small delay to avoid rate limiting
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
                 } catch (error) {
@@ -3436,7 +3439,6 @@ Choose your betting mode:`;
         }
 
         try {
-            // Get only active users (have bot sessions)
             const activeUsers = await this.db.all(`
                 SELECT DISTINCT user_id 
                 FROM bot_sessions 
@@ -3465,7 +3467,6 @@ Choose your betting mode:`;
                     });
                     successCount++;
                     
-                    // Update progress every 5 users
                     if (i % 5 === 0 || i === activeUsers.length - 1) {
                         const progress = Math.floor((i + 1) / totalActiveUsers * 100);
                         await this.bot.editMessageText(
@@ -3477,7 +3478,6 @@ Choose your betting mode:`;
                         );
                     }
                     
-                    // Small delay to avoid rate limiting
                     await new Promise(resolve => setTimeout(resolve, 150));
                     
                 } catch (error) {
@@ -3510,12 +3510,14 @@ console.log("Features: Wait for Win/Loss before next bet");
 console.log("Modes: BIG Only, SMALL Only, Random Bot, Follow Bot");
 console.log("BS Formula Pattern Betting System (B,S only)");
 console.log("Colour Formula Pattern Betting System (G,R,V only)");
-console.log("Bet Sequence System: WINGO 30S: 50,100,200,400,800,1600,3200,6400 | WINGO 3MIN: 100,500,1000,5000 | WINGO 5MIN: 100,300,700,1600,3200,7600,16000,32000 | TRX/WINGO: 100,300,700,1600,3200,7600,16000,32000");
+console.log("Bet Sequence System: WINGO 30S: 50,100,200,400,800,1600,3200,6400 | WINGO 3MIN: 100,500,1000,5000 | WINGO 5MIN: 100,300,700,1600,3200,7600,16000,32000 | TRX/WINGO/TRX 3MIN: 100,300,700,1600,3200,7600,16000,32000");
 console.log("Profit/Loss Target System");
 console.log("Auto Statistics Tracking");
 console.log("Colour Betting Support (RED, GREEN, VIOLET)");
 console.log("TRX Game Support: ENABLED");
+console.log("TRX 3 MIN Support: ENABLED (TypeId: 2)");
 console.log("WINGO 30S Support: ENABLED");
+console.log("WINGO 3 MIN Support: ENABLED");
 console.log("WINGO 5 MIN Support: ENABLED");
 console.log("Win/Loss Messages: ENABLED");
 console.log("Supported Platforms: 777 Big Win (WINGO & TRX)");
