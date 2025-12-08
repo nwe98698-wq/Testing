@@ -4,7 +4,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // BOT CONFIGURATION
-const BOT_TOKEN = "8308226058:AAFyo1U4tQVyKhPU8umajaO34roVYaC2EXM";
+const BOT_TOKEN = "8308226058:AAEiPBihhrgllH18VneeflOS0jVgNqSKLUE";
 const CHANNEL_USERNAME = "@Vipsafesingalchannel298";
 const CHANNEL_LINK = "https://t.me/Vipsafesingalchannel298";
 const ADMIN_USER_ID = "6328953001";
@@ -775,69 +775,7 @@ class LotteryAPI {
     }
 }
 
-async getMyBets() {
-        try {
-            let typeId;
-            let endpoint;
-            
-            // Check if TRX game
-            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
-                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
-                
-                if (this.gameType === 'TRX') {
-                    typeId = 13;
-                } else if (this.gameType === 'TRX_3MIN') {
-                    typeId = 14;
-                } else if (this.gameType === 'TRX_5MIN') {
-                    typeId = 15;
-                } else if (this.gameType === 'TRX_10MIN') {
-                    typeId = 16;
-                }
-                
-                endpoint = 'GetTRXMyEmerdList';
-            } else {
-                // WINGO games
-                if (this.gameType === 'WINGO_30S') {
-                    typeId = 30;
-                } else if (this.gameType === 'WINGO_3MIN') {
-                    typeId = 2;
-                } else if (this.gameType === 'WINGO_5MIN') {
-                    typeId = 3;
-                } else {
-                    typeId = 1;
-                }
-                
-                endpoint = 'GetMyEmerdList';
-            }
 
-            const body = {
-                "typeId": typeId,
-                "pageNo": 1,
-                "pageSize": 10,
-                "language": 0,
-                "random": this.randomKey(),
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
-
-            const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    return result.data || [];
-                }
-            }
-            return [];
-        } catch (error) {
-            console.error(`Error getting my bets for ${this.gameType}:`, error.message);
-            return [];
-        }
-    }
-}
 
 class AutoLotteryBot {
     constructor() {
