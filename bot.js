@@ -4,7 +4,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // BOT CONFIGURATION
-const BOT_TOKEN = "7968178268:AAGG2DQRolX-ZWZ_GFj4njIBH4ZUYjkBtHs";
+const BOT_TOKEN = "8308226058:AAEiPBihhrgllH18VneeflOS0jVgNqSKLUE";
 const CHANNEL_USERNAME = "@Vipsafesingalchannel298";
 const CHANNEL_LINK = "https://t.me/Vipsafesingalchannel298";
 const ADMIN_USER_ID = "6328953001";
@@ -311,6 +311,15 @@ class LotteryAPI {
             if (this.gameType === 'TRX') {
                 typeId = 13;
                 endpoint = 'GetTrxGameIssue';
+            } else if (this.gameType === 'TRX_3MIN') {
+                typeId = 14;
+                endpoint = 'GetTrxGameIssue';
+            } else if (this.gameType === 'TRX_5MIN') {
+                typeId = 15;
+                endpoint = 'GetTrxGameIssue';
+            } else if (this.gameType === 'TRX_10MIN') {
+                typeId = 16;
+                endpoint = 'GetTrxGameIssue';
             } else if (this.gameType === 'WINGO_30S') {
                 typeId = 30;
                 endpoint = 'GetGameIssue';
@@ -320,9 +329,6 @@ class LotteryAPI {
             } else if (this.gameType === 'WINGO_5MIN') {
                 typeId = 3;
                 endpoint = 'GetGameIssue';
-            } else if (this.gameType === 'TRX_3MIN') {
-                typeId = 2; // TRX 3 MIN အတွက် typeId 2
-                endpoint = 'GetTrxGameIssue';
             } else {
                 typeId = 1;
                 endpoint = 'GetGameIssue';
@@ -352,7 +358,8 @@ class LotteryAPI {
                     let issueNumber = '';
                     
                     // TRX GAMES
-                    if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') {
+                    if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                        this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
                         issueNumber = result.data?.predraw?.issueNumber || 
                                      result.data?.issueNumber || 
                                      result.issueNumber || '';
@@ -462,7 +469,13 @@ class LotteryAPI {
                 typeId = 13;
                 gameType = 2;
             } else if (this.gameType === 'TRX_3MIN') {
-                typeId = 2;
+                typeId = 14;
+                gameType = 2;
+            } else if (this.gameType === 'TRX_5MIN') {
+                typeId = 15;
+                gameType = 2;
+            } else if (this.gameType === 'TRX_10MIN') {
+                typeId = 16;
                 gameType = 2;
             } else if (this.gameType === 'WINGO_30S') {
                 typeId = 30;
@@ -499,7 +512,8 @@ class LotteryAPI {
             console.log('REQUEST BODY:', JSON.stringify(requestBody, null, 2));
 
             let endpoint;
-            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') {
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
                 endpoint = 'GameTrxBetting';
             } else {
                 endpoint = 'GameBetting';
@@ -607,8 +621,20 @@ class LotteryAPI {
 
     async getRecentResults(count = 10) {
         try {
-            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN') {
-                const typeId = this.gameType === 'TRX_3MIN' ? 2 : 13;
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+                
+                let typeId;
+                if (this.gameType === 'TRX') {
+                    typeId = 13;
+                } else if (this.gameType === 'TRX_3MIN') {
+                    typeId = 14;
+                } else if (this.gameType === 'TRX_5MIN') {
+                    typeId = 15;
+                } else if (this.gameType === 'TRX_10MIN') {
+                    typeId = 16;
+                }
+
                 const body = {
                     "typeId": typeId,
                     "language": 0,
@@ -762,7 +788,8 @@ class AutoLotteryBot {
             userSession = { gameType: 'WINGO' };
         }
         
-        if (userSession && (userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN')) {
+        if (userSession && (userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN' ||
+            userSession.gameType === 'TRX_5MIN' || userSession.gameType === 'TRX_10MIN')) {
             return {
                 keyboard: [
                     [{ text: "Login" }],
@@ -818,8 +845,12 @@ class AutoLotteryBot {
         return {
             keyboard: [
                 [{ text: "WINGO" }, { text: "TRX" }],
-                [{ text: "WINGO 30S" }],[{ text: "WINGO 3 MIN" }],[{ text: "WINGO 5 MIN" }],
+                [{ text: "WINGO 30S" }],
+                [{ text: "WINGO 3 MIN" }],
+                [{ text: "WINGO 5 MIN" }],
                 [{ text: "TRX 3 MIN" }],
+                [{ text: "TRX 5 MIN" }],
+                [{ text: "TRX 10 MIN" }],
                 [{ text: "Back" }]
             ],
             resize_keyboard: true
@@ -995,7 +1026,7 @@ Manual Features:
 - Game Results & History
 - WINGO/TRX Game Switching
 - WINGO 30S/3MIN/5MIN Switching
-- TRX 3 MIN Support
+- TRX 3 MIN/5 MIN/10 MIN Support
 
 Press Run Bot to start auto betting!`;
 
@@ -1236,6 +1267,8 @@ Press Run Bot to start auto betting!`;
                     break;
 
                 case "TRX 3 MIN":
+                case "TRX 5 MIN":
+                case "TRX 10 MIN":
                 case "WINGO 30S":
                 case "WINGO 3 MIN":
                 case "WINGO 5 MIN":
@@ -1264,6 +1297,10 @@ Press Run Bot to start auto betting!`;
             gameTypeInfo = "\n\nTRX Game: Supports BIG/SMALL Only (No colour betting)";
         } else if (currentGameType === 'TRX_3MIN') {
             gameTypeInfo = "\n\nTRX 3 MIN: Supports BIG/SMALL Only (No colour betting)";
+        } else if (currentGameType === 'TRX_5MIN') {
+            gameTypeInfo = "\n\nTRX 5 MIN: Supports BIG/SMALL Only (No colour betting)";
+        } else if (currentGameType === 'TRX_10MIN') {
+            gameTypeInfo = "\n\nTRX 10 MIN: Supports BIG/SMALL Only (No colour betting)";
         } else if (currentGameType === 'WINGO_30S') {
             gameTypeInfo = "\n\nWINGO 30S: Supports Bot BIG/SMALL and Colour betting";
         } else if (currentGameType === 'WINGO_3MIN') {
@@ -1280,6 +1317,8 @@ Select Game Type:
 • WINGO: (BIG/SMALL + Colours) Support
 • TRX: (BIG/SMALL) Support
 • TRX 3 MIN: (BIG/SMALL) Support
+• TRX 5 MIN: (BIG/SMALL) Support
+• TRX 10 MIN: (BIG/SMALL) Support
 • WINGO 30S: (BIG/SMALL + Colours) Support 
 • WINGO 3 MIN: (BIG/SMALL + Colours) Support
 • WINGO 5 MIN: (BIG/SMALL + Colours) Support
@@ -1304,10 +1343,15 @@ Choose your game type:`;
                 gameType = "WINGO_5MIN";
             } else if (text === "TRX 3 MIN") {
                 gameType = "TRX_3MIN";
+            } else if (text === "TRX 5 MIN") {
+                gameType = "TRX_5MIN";
+            } else if (text === "TRX 10 MIN") {
+                gameType = "TRX_10MIN";
             }
             
             if (gameType === 'WINGO' || gameType === 'TRX' || gameType === 'WINGO_30S' || 
-                gameType === 'WINGO_3MIN' || gameType === 'WINGO_5MIN' || gameType === 'TRX_3MIN') {
+                gameType === 'WINGO_3MIN' || gameType === 'WINGO_5MIN' || gameType === 'TRX_3MIN' ||
+                gameType === 'TRX_5MIN' || gameType === 'TRX_10MIN') {
                 userSession.gameType = gameType;
                 await this.saveUserSetting(userId, 'game_type', gameType);
                 
@@ -1561,7 +1605,8 @@ Last update: ${getMyanmarTime()}`;
         }
 
         try {
-            if (userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN') {
+            if (userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN' ||
+                userSession.gameType === 'TRX_5MIN' || userSession.gameType === 'TRX_10MIN') {
                 await this.bot.sendMessage(chatId, `${userSession.gameType} Game Notice\n\n${userSession.gameType} game does not support colour betting.\n\nPlease use:\n• Bet BIG\n• Bet SMALL\n\nOr switch to WINGO/WINGO 30S/WINGO 3 MIN for colour betting.`);
                 return;
             }
@@ -1788,7 +1833,8 @@ Last update: ${getMyanmarTime()}`;
                     resultNumber = result.number || 'N/A';
                     console.log(`Found matching result for issue ${issue}: number ${resultNumber}`);
                     
-                    if (gameType === 'TRX' || gameType === 'TRX_3MIN') {
+                    if (gameType === 'TRX' || gameType === 'TRX_3MIN' ||
+                        gameType === 'TRX_5MIN' || gameType === 'TRX_10MIN') {
                         if (['0','1','2','3','4'].includes(resultNumber)) {
                             resultType = "SMALL";
                         } else {
@@ -2155,6 +2201,10 @@ Last update: ${getMyanmarTime()}`;
                         delay = 7000;
                     } else if (userSession.gameType === 'TRX_3MIN') {
                         delay = 5000;
+                    } else if (userSession.gameType === 'TRX_5MIN') {
+                        delay = 7000;
+                    } else if (userSession.gameType === 'TRX_10MIN') {
+                        delay = 12000;
                     } else {
                         delay = 3000;
                     }
@@ -2250,7 +2300,9 @@ Last update: ${getMyanmarTime()}`;
 
             console.log(`Selected bet type: ${betType} (${betTypeStr}) for user ${userId}`);
 
-            if ((userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN') && (betType === 10 || betType === 11 || betType === 12)) {
+            if ((userSession.gameType === 'TRX' || userSession.gameType === 'TRX_3MIN' ||
+                userSession.gameType === 'TRX_5MIN' || userSession.gameType === 'TRX_10MIN') && 
+                (betType === 10 || betType === 11 || betType === 12)) {
                 console.log(`${userSession.gameType} game - Converting colour bet to BIG/SMALL for user ${userId}`);
                 betType = Math.random() < 0.5 ? 13 : 14;
                 betTypeStr = `${betType === 13 ? 'BIG' : 'SMALL'} (Colour Formula Converted)`;
@@ -2653,6 +2705,10 @@ Last update: ${getMyanmarTime()}`;
                 defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
             } else if (userSession.gameType === 'TRX_3MIN') {
                 defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+            } else if (userSession.gameType === 'TRX_5MIN') {
+                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
+            } else if (userSession.gameType === 'TRX_10MIN') {
+                defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
             } else {
                 defaultSequence = '100,300,700,1600,3200,7600,16000,32000';
             }
@@ -2998,6 +3054,12 @@ Choose your betting mode:`;
             } else if (gameType === 'TRX_3MIN') {
                 const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
                 validationMessage = `\n\nTRX 3MIN Recommended: ${recommendedAmounts.join(', ')}`;
+            } else if (gameType === 'TRX_5MIN') {
+                const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+                validationMessage = `\n\nTRX 5MIN Recommended: ${recommendedAmounts.join(', ')}`;
+            } else if (gameType === 'TRX_10MIN') {
+                const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
+                validationMessage = `\n\nTRX 10MIN Recommended: ${recommendedAmounts.join(', ')}`;
             } else {
                 const recommendedAmounts = [100, 300, 700, 1600, 3200, 7600, 16000, 32000];
                 validationMessage = `\n\nWINGO Recommended: ${recommendedAmounts.join(', ')}`;
@@ -3510,12 +3572,14 @@ console.log("Features: Wait for Win/Loss before next bet");
 console.log("Modes: BIG Only, SMALL Only, Random Bot, Follow Bot");
 console.log("BS Formula Pattern Betting System (B,S only)");
 console.log("Colour Formula Pattern Betting System (G,R,V only)");
-console.log("Bet Sequence System: WINGO 30S: 50,100,200,400,800,1600,3200,6400 | WINGO 3MIN: 100,500,1000,5000 | WINGO 5MIN: 100,300,700,1600,3200,7600,16000,32000 | TRX/WINGO/TRX 3MIN: 100,300,700,1600,3200,7600,16000,32000");
+console.log("Bet Sequence System: WINGO 30S: 50,100,200,400,800,1600,3200,6400 | WINGO 3MIN: 100,500,1000,5000 | WINGO 5MIN: 100,300,700,1600,3200,7600,16000,32000 | TRX/WINGO/TRX 3MIN/TRX 5MIN/TRX 10MIN: 100,300,700,1600,3200,7600,16000,32000");
 console.log("Profit/Loss Target System");
 console.log("Auto Statistics Tracking");
 console.log("Colour Betting Support (RED, GREEN, VIOLET)");
 console.log("TRX Game Support: ENABLED");
-console.log("TRX 3 MIN Support: ENABLED (TypeId: 2)");
+console.log("TRX 3 MIN Support: ENABLED (TypeId: 14)");
+console.log("TRX 5 MIN Support: ENABLED (TypeId: 15)");
+console.log("TRX 10 MIN Support: ENABLED (TypeId: 16)");
 console.log("WINGO 30S Support: ENABLED");
 console.log("WINGO 3 MIN Support: ENABLED");
 console.log("WINGO 5 MIN Support: ENABLED");
