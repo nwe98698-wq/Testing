@@ -4,7 +4,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // BOT CONFIGURATION
-const BOT_TOKEN = "8308226058:AAEiPBihhrgllH18VneeflOS0jVgNqSKLUE";
+const BOT_TOKEN = "8308226058:AAFJa_8oFAJvFstTn2v3uQFHWr6W9RhvRpY";
 const CHANNEL_USERNAME = "@Vipsafesingalchannel298";
 const CHANNEL_LINK = "https://t.me/Vipsafesingalchannel298";
 const ADMIN_USER_ID = "6328953001";
@@ -620,80 +620,41 @@ class LotteryAPI {
     }
 
     async getRecentResults(count = 10) {
-    try {
-        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
-            this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
-            
-            let typeId;
-            if (this.gameType === 'TRX') {
-                typeId = 13;
-            } else if (this.gameType === 'TRX_3MIN') {
-                typeId = 14;
-            } else if (this.gameType === 'TRX_5MIN') {
-                typeId = 15;
-            } else if (this.gameType === 'TRX_10MIN') {
-                typeId = 16;
-            }
+        try {
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+                
+                let typeId;
+                if (this.gameType === 'TRX') {
+                    typeId = 13;
+                } else if (this.gameType === 'TRX_3MIN') {
+                    typeId = 14;
+                } else if (this.gameType === 'TRX_5MIN') {
+                    typeId = 15;
+                } else if (this.gameType === 'TRX_10MIN') {
+                    typeId = 16;
+                }
 
-            const body = {
-                "pageSize": count,
-                "pageNo": 1,
-                "typeId": typeId,
-                "language": 0,
-                "random": this.randomKey(),
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            
-            console.log(`Getting TRX results for typeId: ${typeId}, count: ${count}`);
-            console.log('Request body:', JSON.stringify(body, null, 2));
-            
-            body.signature = this.signMd5(body);
+                const body = {
+                    "typeId": typeId,
+                    "language": 0,
+                    "random": "b05034ba4a2642009350ee863f29e2e9",
+                    "timestamp": Math.floor(Date.now() / 1000)
+                };
+                body.signature = this.signMd5(body);
 
-            const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
+                const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
+                    headers: this.headers,
+                    timeout: 10000
+                });
 
-            console.log('TRX Results Response:', JSON.stringify(response.data, null, 2));
-
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    const results = [];
-                    
-                    // ပုံထဲကအတိုင်း response structure ကို handle လုပ်ပါ
-                    if (result.data && result.data.settledList) {
-                        const settledList = result.data.settledList;
-                        
-                        if (Array.isArray(settledList)) {
-                            settledList.forEach((item, index) => {
-                                const number = String(item.number || '');
-                                let colour = 'UNKNOWN';
-                                
-                                if (['0', '5'].includes(number)) {
-                                    colour = 'VIOLET';
-                                } else if (['1', '3', '7', '9'].includes(number)) {
-                                    colour = 'GREEN';
-                                } else if (['2', '4', '6', '8'].includes(number)) {
-                                    colour = 'RED';
-                                }
-                                
-                                results.push({
-                                    issueNumber: item.issueNumber || `TRX-${typeId}-${Date.now()}-${index}`,
-                                    number: number,
-                                    colour: colour,
-                                    resultType: ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG",
-                                    openTime: item.openTime || item.createdAt || ''
-                                });
-                            });
-                        }
-                        
-                        // လက်ရှိရလဒ်ကိုလည်းထည့်ပါ
-                        if (result.data.settled) {
-                            const settled = result.data.settled;
+                if (response.status === 200) {
+                    const result = response.data;
+                    if (result.msgCode === 0) {
+                        const settled = result.data?.settled;
+                        if (settled) {
                             const number = String(settled.number || '');
                             let colour = 'UNKNOWN';
-                            
                             if (['0', '5'].includes(number)) {
                                 colour = 'VIOLET';
                             } else if (['1', '3', '7', '9'].includes(number)) {
@@ -702,89 +663,76 @@ class LotteryAPI {
                                 colour = 'RED';
                             }
                             
-                            results.unshift({
-                                issueNumber: settled.issueNumber || `TRX-${typeId}-current`,
+                            return [{
+                                issueNumber: settled.issueNumber,
                                 number: number,
-                                colour: colour,
-                                resultType: ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG",
-                                openTime: settled.openTime || ''
-                            });
+                                colour: colour
+                            }];
                         }
                     }
-                    
-                    console.log(`Parsed ${results.length} TRX results`);
-                    return results.slice(0, count);
                 }
-            }
-        } else {
-            // မူလ WINGO results အတွက် code ကိုဆက်ထားပါ
-            let typeId;
-            if (this.gameType === 'WINGO_30S') {
-                typeId = 30;
-            } else if (this.gameType === 'WINGO_3MIN') {
-                typeId = 2;
-            } else if (this.gameType === 'WINGO_5MIN') {
-                typeId = 3;
             } else {
-                typeId = 1;
-            }
-            
-            const body = {
-                "pageNo": 1,
-                "pageSize": count,
-                "language": 0,
-                "typeId": typeId,
-                "random": "6DEB0766860C42151A193692ED16D65A",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
+                let typeId;
+                if (this.gameType === 'WINGO_30S') {
+                    typeId = 30;
+                } else if (this.gameType === 'WINGO_3MIN') {
+                    typeId = 2;
+                } else if (this.gameType === 'WINGO_5MIN') {
+                    typeId = 3;
+                } else {
+                    typeId = 1;
+                }
+                
+                const body = {
+                    "pageNo": 1,
+                    "pageSize": count,
+                    "language": 0,
+                    "typeId": typeId,
+                    "random": "6DEB0766860C42151A193692ED16D65A",
+                    "timestamp": Math.floor(Date.now() / 1000)
+                };
+                body.signature = this.signMd5(body);
 
-            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
+                const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                    headers: this.headers,
+                    timeout: 10000
+                });
 
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    const dataStr = JSON.stringify(response.data);
-                    const startIdx = dataStr.indexOf('[');
-                    const endIdx = dataStr.indexOf(']') + 1;
-                    
-                    if (startIdx !== -1 && endIdx !== -1) {
-                        const resultsJson = dataStr.substring(startIdx, endIdx);
-                        const results = JSON.parse(resultsJson);
+                if (response.status === 200) {
+                    const result = response.data;
+                    if (result.msgCode === 0) {
+                        const dataStr = JSON.stringify(response.data);
+                        const startIdx = dataStr.indexOf('[');
+                        const endIdx = dataStr.indexOf(']') + 1;
                         
-                        results.forEach(resultItem => {
-                            const number = String(resultItem.number || '');
-                            if (['0', '5'].includes(number)) {
-                                resultItem.colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                resultItem.colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                resultItem.colour = 'RED';
-                            } else {
-                                resultItem.colour = 'UNKNOWN';
-                            }
+                        if (startIdx !== -1 && endIdx !== -1) {
+                            const resultsJson = dataStr.substring(startIdx, endIdx);
+                            const results = JSON.parse(resultsJson);
                             
-                            resultItem.resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
-                        });
-                        
-                        return results;
+                            results.forEach(resultItem => {
+                                const number = String(resultItem.number || '');
+                                if (['0', '5'].includes(number)) {
+                                    resultItem.colour = 'VIOLET';
+                                } else if (['1', '3', '7', '9'].includes(number)) {
+                                    resultItem.colour = 'GREEN';
+                                } else if (['2', '4', '6', '8'].includes(number)) {
+                                    resultItem.colour = 'RED';
+                                } else {
+                                    resultItem.colour = 'UNKNOWN';
+                                }
+                            });
+                            
+                            return results;
+                        }
                     }
                 }
             }
+            return [];
+        } catch (error) {
+            console.error('Error getting recent results:', error.message);
+            return [];
         }
-        return [];
-    } catch (error) {
-        console.error('Error getting recent results:', error.message);
-        if (error.response) {
-            console.error('Error response data:', error.response.data);
-            console.error('Error response status:', error.response.status);
-        }
-        return [];
     }
-}
 }
 
 class AutoLotteryBot {
