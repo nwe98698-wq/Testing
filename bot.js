@@ -4,15 +4,14 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // BOT CONFIGURATION
-const BOT_TOKEN = "8308226058:AAFJa_8oFAJvFstTn2v3uQFHWr6W9RhvRpY";
+const BOT_TOKEN = "8308226058:AAEiPBihhrgllH18VneeflOS0jVgNqSKLUE";
 const CHANNEL_USERNAME = "@Vipsafesingalchannel298";
 const CHANNEL_LINK = "https://t.me/Vipsafesingalchannel298";
 const ADMIN_USER_ID = "6328953001";
 
 // API ENDPOINTS
 const API_ENDPOINTS = {
-    "777": "https://api.bigwinqaz.com/api/webapi/",
-    "TRX": "https://api.bigwinqaz.com/api/webapi/"
+    "777": "https://api.bigwinqaz.com/api/webapi/"
 };
 
 // COLOUR BET TYPES
