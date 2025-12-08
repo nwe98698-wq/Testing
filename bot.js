@@ -619,41 +619,55 @@ class LotteryAPI {
     }
 
     async getRecentResults(count = 10) {
-        try {
-            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
-                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
-                
-                let typeId;
-                if (this.gameType === 'TRX') {
-                    typeId = 13;
-                } else if (this.gameType === 'TRX_3MIN') {
-                    typeId = 14;
-                } else if (this.gameType === 'TRX_5MIN') {
-                    typeId = 15;
-                } else if (this.gameType === 'TRX_10MIN') {
-                    typeId = 16;
-                }
+    try {
+        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+            this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+            
+            let typeId;
+            if (this.gameType === 'TRX') {
+                typeId = 13;
+            } else if (this.gameType === 'TRX_3MIN') {
+                typeId = 14;
+            } else if (this.gameType === 'TRX_5MIN') {
+                typeId = 15;
+            } else if (this.gameType === 'TRX_10MIN') {
+                typeId = 16;
+            }
 
-                const body = {
-                    "typeId": typeId,
-                    "language": 0,
-                    "random": "b05034ba4a2642009350ee863f29e2e9",
-                    "timestamp": Math.floor(Date.now() / 1000)
-                };
-                body.signature = this.signMd5(body);
+            const body = {
+                "pageNo": 1,
+                "pageSize": count,
+                "language": 0,
+                "typeId": typeId,
+                "random": "6DEB0766860C42151A193692ED16D65A",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
 
-                const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
-                    headers: this.headers,
-                    timeout: 10000
-                });
+            console.log(`GETTING TRX RESULTS FOR ${this.gameType}, COUNT: ${count}`);
 
-                if (response.status === 200) {
-                    const result = response.data;
-                    if (result.msgCode === 0) {
-                        const settled = result.data?.settled;
-                        if (settled) {
-                            const number = String(settled.number || '');
+            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            console.log(`TRX RESULTS RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
+
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const dataStr = JSON.stringify(response.data);
+                    const startIdx = dataStr.indexOf('[');
+                    const endIdx = dataStr.lastIndexOf(']') + 1;
+                    
+                    if (startIdx !== -1 && endIdx !== -1) {
+                        const resultsJson = dataStr.substring(startIdx, endIdx);
+                        const results = JSON.parse(resultsJson);
+                        
+                        const formattedResults = results.map(resultItem => {
+                            const number = String(resultItem.number || '');
                             let colour = 'UNKNOWN';
+                            
                             if (['0', '5'].includes(number)) {
                                 colour = 'VIOLET';
                             } else if (['1', '3', '7', '9'].includes(number)) {
@@ -662,76 +676,127 @@ class LotteryAPI {
                                 colour = 'RED';
                             }
                             
-                            return [{
-                                issueNumber: settled.issueNumber,
+                            return {
+                                issueNumber: resultItem.issueNumber || resultItem.issue || '',
                                 number: number,
                                 colour: colour
-                            }];
+                            };
+                        });
+                        
+                        console.log(`RETURNING ${formattedResults.length} TRX RESULTS`);
+                        return formattedResults;
+                    } else {
+                        console.log(`NO ARRAY FOUND IN TRX RESPONSE FOR ${this.gameType}`);
+                    }
+                } else {
+                    console.log(`ERROR GETTING TRX RESULTS FOR ${this.gameType}:`, result.msg);
+                }
+            }
+            
+            // Fallback: Try to get single result from current issue
+            console.log(`USING FALLBACK FOR TRX RESULTS FOR ${this.gameType}`);
+            const body2 = {
+                "typeId": typeId,
+                "language": 0,
+                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body2.signature = this.signMd5(body2);
+
+            const response2 = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body2, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            if (response2.status === 200) {
+                const result2 = response2.data;
+                if (result2.msgCode === 0) {
+                    const settled = result2.data?.settled;
+                    if (settled) {
+                        const number = String(settled.number || '');
+                        let colour = 'UNKNOWN';
+                        if (['0', '5'].includes(number)) {
+                            colour = 'VIOLET';
+                        } else if (['1', '3', '7', '9'].includes(number)) {
+                            colour = 'GREEN';
+                        } else if (['2', '4', '6', '8'].includes(number)) {
+                            colour = 'RED';
                         }
+                        
+                        return [{
+                            issueNumber: settled.issueNumber,
+                            number: number,
+                            colour: colour
+                        }];
                     }
                 }
+            }
+            
+            return [];
+        } else {
+            // WINGO games (original code)
+            let typeId;
+            if (this.gameType === 'WINGO_30S') {
+                typeId = 30;
+            } else if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;
+            } else if (this.gameType === 'WINGO_5MIN') {
+                typeId = 3;
             } else {
-                let typeId;
-                if (this.gameType === 'WINGO_30S') {
-                    typeId = 30;
-                } else if (this.gameType === 'WINGO_3MIN') {
-                    typeId = 2;
-                } else if (this.gameType === 'WINGO_5MIN') {
-                    typeId = 3;
-                } else {
-                    typeId = 1;
-                }
-                
-                const body = {
-                    "pageNo": 1,
-                    "pageSize": count,
-                    "language": 0,
-                    "typeId": typeId,
-                    "random": "6DEB0766860C42151A193692ED16D65A",
-                    "timestamp": Math.floor(Date.now() / 1000)
-                };
-                body.signature = this.signMd5(body);
+                typeId = 1;
+            }
+            
+            const body = {
+                "pageNo": 1,
+                "pageSize": count,
+                "language": 0,
+                "typeId": typeId,
+                "random": "6DEB0766860C42151A193692ED16D65A",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
 
-                const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                    headers: this.headers,
-                    timeout: 10000
-                });
+            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
 
-                if (response.status === 200) {
-                    const result = response.data;
-                    if (result.msgCode === 0) {
-                        const dataStr = JSON.stringify(response.data);
-                        const startIdx = dataStr.indexOf('[');
-                        const endIdx = dataStr.indexOf(']') + 1;
+            if (response.status === 200) {
+                const result = response.data;
+                if (result.msgCode === 0) {
+                    const dataStr = JSON.stringify(response.data);
+                    const startIdx = dataStr.indexOf('[');
+                    const endIdx = dataStr.lastIndexOf(']') + 1;
+                    
+                    if (startIdx !== -1 && endIdx !== -1) {
+                        const resultsJson = dataStr.substring(startIdx, endIdx);
+                        const results = JSON.parse(resultsJson);
                         
-                        if (startIdx !== -1 && endIdx !== -1) {
-                            const resultsJson = dataStr.substring(startIdx, endIdx);
-                            const results = JSON.parse(resultsJson);
-                            
-                            results.forEach(resultItem => {
-                                const number = String(resultItem.number || '');
-                                if (['0', '5'].includes(number)) {
-                                    resultItem.colour = 'VIOLET';
-                                } else if (['1', '3', '7', '9'].includes(number)) {
-                                    resultItem.colour = 'GREEN';
-                                } else if (['2', '4', '6', '8'].includes(number)) {
-                                    resultItem.colour = 'RED';
-                                } else {
-                                    resultItem.colour = 'UNKNOWN';
-                                }
-                            });
-                            
-                            return results;
-                        }
+                        results.forEach(resultItem => {
+                            const number = String(resultItem.number || '');
+                            if (['0', '5'].includes(number)) {
+                                resultItem.colour = 'VIOLET';
+                            } else if (['1', '3', '7', '9'].includes(number)) {
+                                resultItem.colour = 'GREEN';
+                            } else if (['2', '4', '6', '8'].includes(number)) {
+                                resultItem.colour = 'RED';
+                            } else {
+                                resultItem.colour = 'UNKNOWN';
+                            }
+                        });
+                        
+                        return results;
                     }
                 }
             }
             return [];
-        } catch (error) {
-            console.error('Error getting recent results:', error.message);
-            return [];
         }
+    } catch (error) {
+        console.error('Error getting recent results:', error.message);
+        console.error('Error stack:', error.stack);
+        return [];
     }
+}
 }
 
 class AutoLotteryBot {
