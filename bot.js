@@ -4,14 +4,15 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // BOT CONFIGURATION
-const BOT_TOKEN = "8308226058:AAEiPBihhrgllH18VneeflOS0jVgNqSKLUE";
+const BOT_TOKEN = "8308226058:AAFyo1U4tQVyKhPU8umajaO34roVYaC2EXM";
 const CHANNEL_USERNAME = "@Vipsafesingalchannel298";
 const CHANNEL_LINK = "https://t.me/Vipsafesingalchannel298";
 const ADMIN_USER_ID = "6328953001";
 
 // API ENDPOINTS
 const API_ENDPOINTS = {
-    "777": "https://api.bigwinqaz.com/api/webapi/"
+    "777": "https://api.bigwinqaz.com/api/webapi/",
+    "TRX": "https://api.bigwinqaz.com/api/webapi/"
 };
 
 // COLOUR BET TYPES
@@ -303,128 +304,129 @@ class LotteryAPI {
     }
 
     async getCurrentIssue() {
-    try {
-        let typeId;
-        let endpoint;
-        
-        if (this.gameType === 'TRX') {
-            typeId = 13;
-            endpoint = 'GetTrxGameIssue';
-        } else if (this.gameType === 'TRX_3MIN') {
-            typeId = 14;
-            endpoint = 'GetTrxGameIssue';
-        } else if (this.gameType === 'TRX_5MIN') {
-            typeId = 15;
-            endpoint = 'GetTrxGameIssue';
-        } else if (this.gameType === 'TRX_10MIN') {
-            typeId = 16;
-            endpoint = 'GetTrxGameIssue';
-        } else if (this.gameType === 'WINGO_30S') {
-            typeId = 30;
-            endpoint = 'GetGameIssue';
-        } else if (this.gameType === 'WINGO_3MIN') {
-            typeId = 2;
-            endpoint = 'GetGameIssue';
-        } else if (this.gameType === 'WINGO_5MIN') {
-            typeId = 3;
-            endpoint = 'GetGameIssue';
-        } else {
-            typeId = 1;
-            endpoint = 'GetGameIssue';
-        }
-
-        const body = {
-            "typeId": typeId,
-            "language": 0,
-            "random": "8f45ae63e816466b82e36e6ac4d6ec73",
-            "timestamp": Math.floor(Date.now() / 1000)
-        };
-        body.signature = this.signMd5(body);
-
-        console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, ENDPOINT: ${endpoint}, TYPEID: ${typeId}`);
-
-        const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
-            headers: this.headers,
-            timeout: 10000
-        });
-
-        console.log(`ISSUE RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
-
-        if (response.status === 200) {
-            const result = response.data;
+        try {
+            let typeId;
+            let endpoint;
             
-            if (result.msgCode === 0) {
-                let issueNumber = '';
+            if (this.gameType === 'TRX') {
+                typeId = 13;
+                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+            } else if (this.gameType === 'TRX_3MIN') {
+                typeId = 14;
+                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+            } else if (this.gameType === 'TRX_5MIN') {
+                typeId = 15;
+                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+            } else if (this.gameType === 'TRX_10MIN') {
+                typeId = 16;
+                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+            } else if (this.gameType === 'WINGO_30S') {
+                typeId = 30;
+                endpoint = 'GetGameIssue';
+            } else if (this.gameType === 'WINGO_3MIN') {
+                typeId = 2;
+                endpoint = 'GetGameIssue';
+            } else if (this.gameType === 'WINGO_5MIN') {
+                typeId = 3;
+                endpoint = 'GetGameIssue';
+            } else {
+                typeId = 1;
+                endpoint = 'GetGameIssue';
+            }
+
+            const body = {
+                "typeId": typeId,
+                "language": 0,
+                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "timestamp": Math.floor(Date.now() / 1000)
+            };
+            body.signature = this.signMd5(body);
+
+            console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, TYPEID: ${typeId}, ENDPOINT: ${endpoint}`);
+
+            const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
+                headers: this.headers,
+                timeout: 10000
+            });
+
+            console.log(`ISSUE RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
+
+            if (response.status === 200) {
+                const result = response.data;
                 
-                // TRX GAMES
-                if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
-                    this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
-                    issueNumber = result.data?.predraw?.issueNumber || 
-                                 result.data?.issueNumber || 
-                                 result.issueNumber || 
-                                 result.data?.current?.issueNumber || '';
-                } 
-                // WINGO 30S GAME
-                else if (this.gameType === 'WINGO_30S') {
-                    if (result.data) {
-                        issueNumber = result.data.issueNumber || 
-                                     result.data.predraw?.issueNumber || 
-                                     result.data.current?.issueNumber || '';
+                if (result.msgCode === 0) {
+                    let issueNumber = '';
+                    
+                    // TRX GAMES - using new TRX endpoints
+                    if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                        this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+                        issueNumber = result.data?.predraw?.issueNumber || 
+                                     result.data?.issueNumber || 
+                                     result.issueNumber || 
+                                     result.data?.currentIssue || '';
+                    } 
+                    // WINGO 30S GAME
+                    else if (this.gameType === 'WINGO_30S') {
+                        if (result.data) {
+                            issueNumber = result.data.issueNumber || 
+                                         result.data.predraw?.issueNumber || 
+                                         result.data.current?.issueNumber || '';
+                            
+                            if (!issueNumber) {
+                                if (result.data.currentIssue) {
+                                    issueNumber = result.data.currentIssue;
+                                } else if (result.data.issue) {
+                                    issueNumber = result.data.issue;
+                                }
+                            }
+                        }
                         
                         if (!issueNumber) {
-                            if (result.data.currentIssue) {
-                                issueNumber = result.data.currentIssue;
-                            } else if (result.data.issue) {
-                                issueNumber = result.data.issue;
+                            issueNumber = result.issueNumber || result.issue || '';
+                        }
+                    }
+                    // OTHER WINGO GAMES
+                    else {
+                        issueNumber = result.data?.issueNumber || 
+                                     result.data?.predraw?.issueNumber || 
+                                     result.issueNumber || 
+                                     result.data?.current?.issueNumber || '';
+                        
+                        if (!issueNumber && result.data) {
+                            const dataStr = JSON.stringify(result.data);
+                            const issueMatch = dataStr.match(/"issueNumber"\s*:\s*"(\d+)"/);
+                            if (issueMatch) {
+                                issueNumber = issueMatch[1];
                             }
                         }
                     }
                     
-                    if (!issueNumber) {
-                        issueNumber = result.issueNumber || result.issue || '';
-                    }
+                    console.log(`CURRENT ISSUE FOR ${this.gameType}: ${issueNumber}`);
+                    return issueNumber;
+                } else {
+                    console.log(`ERROR GETTING ISSUE FOR ${this.gameType}:`, result.msg);
+                    return "";
                 }
-                // OTHER WINGO GAMES
-                else {
-                    issueNumber = result.data?.issueNumber || 
-                                 result.data?.predraw?.issueNumber || 
-                                 result.issueNumber || 
-                                 result.data?.current?.issueNumber || '';
-                    
-                    if (!issueNumber && result.data) {
-                        const dataStr = JSON.stringify(result.data);
-                        const issueMatch = dataStr.match(/"issueNumber"\s*:\s*"(\d+)"/);
-                        if (issueMatch) {
-                            issueNumber = issueMatch[1];
-                        }
-                    }
-                }
-                
-                console.log(`CURRENT ISSUE FOR ${this.gameType}: ${issueNumber}`);
-                return issueNumber;
             } else {
-                console.log(`ERROR GETTING ISSUE FOR ${this.gameType}:`, result.msg);
+                console.log(`HTTP ERROR FOR ${this.gameType}:`, response.status);
                 return "";
             }
-        } else {
-            console.log(`HTTP ERROR FOR ${this.gameType}:`, response.status);
+        } catch (error) {
+            console.error(`ERROR GETTING CURRENT ISSUE FOR ${this.gameType}:`, error.message);
+            
+            if (error.response) {
+                console.error('Error response data:', error.response.data);
+                console.error('Error response status:', error.response.status);
+                console.error('Error response headers:', error.response.headers);
+            } else if (error.request) {
+                console.error('No response received:', error.request);
+            } else {
+                console.error('Error setting up request:', error.message);
+            }
+            
             return "";
         }
-    } catch (error) {
-        console.error(`ERROR GETTING CURRENT ISSUE FOR ${this.gameType}:`, error.message);
-        
-        if (error.response) {
-            console.error('Error response data:', error.response.data);
-            console.error('Error response status:', error.response.status);
-        } else if (error.request) {
-            console.error('No response received:', error.request);
-        } else {
-            console.error('Error setting up request:', error.message);
-        }
-        
-        return "";
     }
-}
 
     async placeBet(amount, betType) {
         try {
@@ -619,194 +621,222 @@ class LotteryAPI {
     }
 
     async getRecentResults(count = 10) {
-    try {
-        console.log(`GETTING RECENT RESULTS FOR ${this.gameType}, COUNT: ${count}`);
-        
-        // TRX GAMES
-        if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
-            this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
-            
-            let typeId;
-            if (this.gameType === 'TRX') {
-                typeId = 13;
-            } else if (this.gameType === 'TRX_3MIN') {
-                typeId = 14;
-            } else if (this.gameType === 'TRX_5MIN') {
-                typeId = 15;
-            } else if (this.gameType === 'TRX_10MIN') {
-                typeId = 16;
-            }
+        try {
+            // TRX GAMES - using new TRX endpoint
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+                
+                let typeId;
+                if (this.gameType === 'TRX') {
+                    typeId = 13;
+                } else if (this.gameType === 'TRX_3MIN') {
+                    typeId = 14;
+                } else if (this.gameType === 'TRX_5MIN') {
+                    typeId = 15;
+                } else if (this.gameType === 'TRX_10MIN') {
+                    typeId = 16;
+                }
 
-            console.log(`TRX GAME TYPEID: ${typeId}`);
-            
-            // Method 1: Try GetNoaverageEmerdList for multiple results
-            const body = {
-                "pageSize": count,
-                "pageNo": 1,
-                "typeId": typeId,
-                "language": 0,
-                "random": "9097feff12804debbd0564dfdd2825f7",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
+                const body = {
+                    "typeId": typeId,
+                    "pageNo": 1,
+                    "pageSize": count,
+                    "language": 0,
+                    "random": "b05034ba4a2642009350ee863f29e2e9",
+                    "timestamp": Math.floor(Date.now() / 1000)
+                };
+                body.signature = this.signMd5(body);
 
-            console.log(`TRYING GetNoaverageEmerdList WITH BODY:`, JSON.stringify(body));
+                // Using GetTRXNoaverageEmerdList for TRX results
+                const response = await axios.post(`${this.baseUrl}GetTRXNoaverageEmerdList`, body, {
+                    headers: this.headers,
+                    timeout: 10000
+                });
 
-            try {
+                console.log(`TRX RESULTS RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
+
+                if (response.status === 200) {
+                    const result = response.data;
+                    if (result.msgCode === 0) {
+                        const dataStr = JSON.stringify(response.data);
+                        const startIdx = dataStr.indexOf('[');
+                        const endIdx = dataStr.indexOf(']') + 1;
+                        
+                        if (startIdx !== -1 && endIdx !== -1) {
+                            const resultsJson = dataStr.substring(startIdx, endIdx);
+                            const results = JSON.parse(resultsJson);
+                            
+                            const formattedResults = results.map(resultItem => {
+                                const issueNumber = resultItem.issueNumber || resultItem.issue || '';
+                                const number = String(resultItem.number || resultItem.openNumber || '');
+                                
+                                let colour = 'UNKNOWN';
+                                if (['0', '5'].includes(number)) {
+                                    colour = 'VIOLET';
+                                } else if (['1', '3', '7', '9'].includes(number)) {
+                                    colour = 'GREEN';
+                                } else if (['2', '4', '6', '8'].includes(number)) {
+                                    colour = 'RED';
+                                }
+                                
+                                return {
+                                    issueNumber: issueNumber,
+                                    number: number,
+                                    colour: colour
+                                };
+                            });
+                            
+                            return formattedResults;
+                        } else {
+                            // Try alternative format for TRX
+                            const settled = result.data?.settled;
+                            if (settled) {
+                                const number = String(settled.number || '');
+                                let colour = 'UNKNOWN';
+                                if (['0', '5'].includes(number)) {
+                                    colour = 'VIOLET';
+                                } else if (['1', '3', '7', '9'].includes(number)) {
+                                    colour = 'GREEN';
+                                } else if (['2', '4', '6', '8'].includes(number)) {
+                                    colour = 'RED';
+                                }
+                                
+                                return [{
+                                    issueNumber: settled.issueNumber,
+                                    number: number,
+                                    colour: colour
+                                }];
+                            }
+                        }
+                    }
+                }
+            } else {
+                // WINGO GAMES (existing code)
+                let typeId;
+                if (this.gameType === 'WINGO_30S') {
+                    typeId = 30;
+                } else if (this.gameType === 'WINGO_3MIN') {
+                    typeId = 2;
+                } else if (this.gameType === 'WINGO_5MIN') {
+                    typeId = 3;
+                } else {
+                    typeId = 1;
+                }
+                
+                const body = {
+                    "pageNo": 1,
+                    "pageSize": count,
+                    "language": 0,
+                    "typeId": typeId,
+                    "random": "6DEB0766860C42151A193692ED16D65A",
+                    "timestamp": Math.floor(Date.now() / 1000)
+                };
+                body.signature = this.signMd5(body);
+
                 const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
                     headers: this.headers,
                     timeout: 10000
                 });
 
-                console.log(`GetNoaverageEmerdList RESPONSE:`, JSON.stringify(response.data));
-
                 if (response.status === 200) {
                     const result = response.data;
-                    if (result.msgCode === 0 && result.data) {
-                        const results = Array.isArray(result.data) ? result.data : [result.data];
+                    if (result.msgCode === 0) {
+                        const dataStr = JSON.stringify(response.data);
+                        const startIdx = dataStr.indexOf('[');
+                        const endIdx = dataStr.indexOf(']') + 1;
                         
-                        const formattedResults = results.map(resultItem => {
-                            const number = String(resultItem.number || '');
-                            let colour = 'UNKNOWN';
+                        if (startIdx !== -1 && endIdx !== -1) {
+                            const resultsJson = dataStr.substring(startIdx, endIdx);
+                            const results = JSON.parse(resultsJson);
                             
-                            if (['0', '5'].includes(number)) {
-                                colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                colour = 'RED';
-                            }
+                            results.forEach(resultItem => {
+                                const number = String(resultItem.number || '');
+                                if (['0', '5'].includes(number)) {
+                                    resultItem.colour = 'VIOLET';
+                                } else if (['1', '3', '7', '9'].includes(number)) {
+                                    resultItem.colour = 'GREEN';
+                                } else if (['2', '4', '6', '8'].includes(number)) {
+                                    resultItem.colour = 'RED';
+                                } else {
+                                    resultItem.colour = 'UNKNOWN';
+                                }
+                            });
                             
-                            return {
-                                issueNumber: resultItem.issueNumber || resultItem.issue || '',
-                                number: number,
-                                colour: colour
-                            };
-                        });
-                        
-                        console.log(`RETURNING ${formattedResults.length} RESULTS FROM GetNoaverageEmerdList`);
-                        return formattedResults;
-                    }
-                }
-            } catch (error1) {
-                console.log(`GetNoaverageEmerdList FAILED: ${error1.message}`);
-            }
-
-            // Method 2: Fallback to GetTrxGameIssue for single result
-            console.log(`TRYING GetTrxGameIssue AS FALLBACK`);
-            const body2 = {
-                "typeId": typeId,
-                "language": 0,
-                "random": "8f45ae63e816466b82e36e6ac4d6ec73",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body2.signature = this.signMd5(body2);
-
-            try {
-                const response2 = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body2, {
-                    headers: this.headers,
-                    timeout: 10000
-                });
-
-                console.log(`GetTrxGameIssue RESPONSE:`, JSON.stringify(response2.data));
-
-                if (response2.status === 200) {
-                    const result2 = response2.data;
-                    if (result2.msgCode === 0) {
-                        const settled = result2.data?.settled;
-                        if (settled) {
-                            const number = String(settled.number || '');
-                            let colour = 'UNKNOWN';
-                            if (['0', '5'].includes(number)) {
-                                colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                colour = 'RED';
-                            }
-                            
-                            const result = [{
-                                issueNumber: settled.issueNumber || settled.issue || '',
-                                number: number,
-                                colour: colour
-                            }];
-                            
-                            console.log(`RETURNING SINGLE RESULT FROM GetTrxGameIssue`);
-                            return result;
+                            return results;
                         }
                     }
                 }
-            } catch (error2) {
-                console.log(`GetTrxGameIssue ALSO FAILED: ${error2.message}`);
             }
-            
-            console.log(`ALL METHODS FAILED FOR TRX RESULTS`);
             return [];
-            
-        } else {
-            // WINGO GAMES (existing code with improvement)
+        } catch (error) {
+            console.error(`Error getting recent results for ${this.gameType}:`, error.message);
+            return [];
+        }
+    }
+}
+
+async getMyBets() {
+        try {
             let typeId;
-            if (this.gameType === 'WINGO_30S') {
-                typeId = 30;
-            } else if (this.gameType === 'WINGO_3MIN') {
-                typeId = 2;
-            } else if (this.gameType === 'WINGO_5MIN') {
-                typeId = 3;
-            } else {
-                typeId = 1;
-            }
+            let endpoint;
             
+            // Check if TRX game
+            if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+                
+                if (this.gameType === 'TRX') {
+                    typeId = 13;
+                } else if (this.gameType === 'TRX_3MIN') {
+                    typeId = 14;
+                } else if (this.gameType === 'TRX_5MIN') {
+                    typeId = 15;
+                } else if (this.gameType === 'TRX_10MIN') {
+                    typeId = 16;
+                }
+                
+                endpoint = 'GetTRXMyEmerdList';
+            } else {
+                // WINGO games
+                if (this.gameType === 'WINGO_30S') {
+                    typeId = 30;
+                } else if (this.gameType === 'WINGO_3MIN') {
+                    typeId = 2;
+                } else if (this.gameType === 'WINGO_5MIN') {
+                    typeId = 3;
+                } else {
+                    typeId = 1;
+                }
+                
+                endpoint = 'GetMyEmerdList';
+            }
+
             const body = {
-                "pageNo": 1,
-                "pageSize": count,
-                "language": 0,
                 "typeId": typeId,
-                "random": "6DEB0766860C42151A193692ED16D65A",
+                "pageNo": 1,
+                "pageSize": 10,
+                "language": 0,
+                "random": this.randomKey(),
                 "timestamp": Math.floor(Date.now() / 1000)
             };
             body.signature = this.signMd5(body);
 
-            console.log(`GETTING WINGO RESULTS WITH BODY:`, JSON.stringify(body));
-
-            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+            const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
                 headers: this.headers,
                 timeout: 10000
             });
 
-            console.log(`WINGO RESPONSE:`, JSON.stringify(response.data));
-
             if (response.status === 200) {
                 const result = response.data;
-                if (result.msgCode === 0 && result.data) {
-                    const results = Array.isArray(result.data) ? result.data : [result.data];
-                    
-                    results.forEach(resultItem => {
-                        const number = String(resultItem.number || '');
-                        if (['0', '5'].includes(number)) {
-                            resultItem.colour = 'VIOLET';
-                        } else if (['1', '3', '7', '9'].includes(number)) {
-                            resultItem.colour = 'GREEN';
-                        } else if (['2', '4', '6', '8'].includes(number)) {
-                            resultItem.colour = 'RED';
-                        } else {
-                            resultItem.colour = 'UNKNOWN';
-                        }
-                    });
-                    
-                    return results;
+                if (result.msgCode === 0) {
+                    return result.data || [];
                 }
             }
             return [];
+        } catch (error) {
+            console.error(`Error getting my bets for ${this.gameType}:`, error.message);
+            return [];
         }
-    } catch (error) {
-        console.error('Error getting recent results:', error.message);
-        if (error.response) {
-            console.error('Error response data:', error.response.data);
-            console.error('Error response status:', error.response.status);
-        }
-        return [];
     }
-}
 }
 
 class AutoLotteryBot {
