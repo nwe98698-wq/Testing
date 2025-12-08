@@ -303,128 +303,128 @@ class LotteryAPI {
     }
 
     async getCurrentIssue() {
-        try {
-            let typeId;
-            let endpoint;
+    try {
+        let typeId;
+        let endpoint;
+        
+        if (this.gameType === 'TRX') {
+            typeId = 13;
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'TRX_3MIN') {
+            typeId = 14;
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'TRX_5MIN') {
+            typeId = 15;
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'TRX_10MIN') {
+            typeId = 16;
+            endpoint = 'GetTrxGameIssue';
+        } else if (this.gameType === 'WINGO_30S') {
+            typeId = 30;
+            endpoint = 'GetGameIssue';
+        } else if (this.gameType === 'WINGO_3MIN') {
+            typeId = 2;
+            endpoint = 'GetGameIssue';
+        } else if (this.gameType === 'WINGO_5MIN') {
+            typeId = 3;
+            endpoint = 'GetGameIssue';
+        } else {
+            typeId = 1;
+            endpoint = 'GetGameIssue';
+        }
+
+        const body = {
+            "typeId": typeId,
+            "language": 0,
+            "random": "8f45ae63e816466b82e36e6ac4d6ec73",
+            "timestamp": Math.floor(Date.now() / 1000)
+        };
+        body.signature = this.signMd5(body);
+
+        console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, ENDPOINT: ${endpoint}, TYPEID: ${typeId}`);
+
+        const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
+            headers: this.headers,
+            timeout: 10000
+        });
+
+        console.log(`ISSUE RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
+
+        if (response.status === 200) {
+            const result = response.data;
             
-            if (this.gameType === 'TRX') {
-                typeId = 13;
-                endpoint = 'GetTrxGameIssue';
-            } else if (this.gameType === 'TRX_3MIN') {
-                typeId = 14;
-                endpoint = 'GetTrxGameIssue';
-            } else if (this.gameType === 'TRX_5MIN') {
-                typeId = 15;
-                endpoint = 'GetTrxGameIssue';
-            } else if (this.gameType === 'TRX_10MIN') {
-                typeId = 16;
-                endpoint = 'GetTrxGameIssue';
-            } else if (this.gameType === 'WINGO_30S') {
-                typeId = 30;
-                endpoint = 'GetGameIssue';
-            } else if (this.gameType === 'WINGO_3MIN') {
-                typeId = 2;
-                endpoint = 'GetGameIssue';
-            } else if (this.gameType === 'WINGO_5MIN') {
-                typeId = 3;
-                endpoint = 'GetGameIssue';
-            } else {
-                typeId = 1;
-                endpoint = 'GetGameIssue';
-            }
-
-            const body = {
-                "typeId": typeId,
-                "language": 0,
-                "random": "b05034ba4a2642009350ee863f29e2e9",
-                "timestamp": Math.floor(Date.now() / 1000)
-            };
-            body.signature = this.signMd5(body);
-
-            console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, TYPEID: ${typeId}`);
-
-            const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
-
-            console.log(`ISSUE RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
-
-            if (response.status === 200) {
-                const result = response.data;
+            if (result.msgCode === 0) {
+                let issueNumber = '';
                 
-                if (result.msgCode === 0) {
-                    let issueNumber = '';
-                    
-                    // TRX GAMES
-                    if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
-                        this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
-                        issueNumber = result.data?.predraw?.issueNumber || 
-                                     result.data?.issueNumber || 
-                                     result.issueNumber || '';
-                    } 
-                    // WINGO 30S GAME
-                    else if (this.gameType === 'WINGO_30S') {
-                        if (result.data) {
-                            issueNumber = result.data.issueNumber || 
-                                         result.data.predraw?.issueNumber || 
-                                         result.data.current?.issueNumber || '';
-                            
-                            if (!issueNumber) {
-                                if (result.data.currentIssue) {
-                                    issueNumber = result.data.currentIssue;
-                                } else if (result.data.issue) {
-                                    issueNumber = result.data.issue;
-                                }
-                            }
-                        }
+                // TRX GAMES
+                if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
+                    this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
+                    issueNumber = result.data?.predraw?.issueNumber || 
+                                 result.data?.issueNumber || 
+                                 result.issueNumber || 
+                                 result.data?.current?.issueNumber || '';
+                } 
+                // WINGO 30S GAME
+                else if (this.gameType === 'WINGO_30S') {
+                    if (result.data) {
+                        issueNumber = result.data.issueNumber || 
+                                     result.data.predraw?.issueNumber || 
+                                     result.data.current?.issueNumber || '';
                         
                         if (!issueNumber) {
-                            issueNumber = result.issueNumber || result.issue || '';
-                        }
-                    }
-                    // OTHER WINGO GAMES
-                    else {
-                        issueNumber = result.data?.issueNumber || 
-                                     result.data?.predraw?.issueNumber || 
-                                     result.issueNumber || 
-                                     result.data?.current?.issueNumber || '';
-                        
-                        if (!issueNumber && result.data) {
-                            const dataStr = JSON.stringify(result.data);
-                            const issueMatch = dataStr.match(/"issueNumber"\s*:\s*"(\d+)"/);
-                            if (issueMatch) {
-                                issueNumber = issueMatch[1];
+                            if (result.data.currentIssue) {
+                                issueNumber = result.data.currentIssue;
+                            } else if (result.data.issue) {
+                                issueNumber = result.data.issue;
                             }
                         }
                     }
                     
-                    console.log(`CURRENT ISSUE FOR ${this.gameType}: ${issueNumber}`);
-                    return issueNumber;
-                } else {
-                    console.log(`ERROR GETTING ISSUE FOR ${this.gameType}:`, result.msg);
-                    return "";
+                    if (!issueNumber) {
+                        issueNumber = result.issueNumber || result.issue || '';
+                    }
                 }
+                // OTHER WINGO GAMES
+                else {
+                    issueNumber = result.data?.issueNumber || 
+                                 result.data?.predraw?.issueNumber || 
+                                 result.issueNumber || 
+                                 result.data?.current?.issueNumber || '';
+                    
+                    if (!issueNumber && result.data) {
+                        const dataStr = JSON.stringify(result.data);
+                        const issueMatch = dataStr.match(/"issueNumber"\s*:\s*"(\d+)"/);
+                        if (issueMatch) {
+                            issueNumber = issueMatch[1];
+                        }
+                    }
+                }
+                
+                console.log(`CURRENT ISSUE FOR ${this.gameType}: ${issueNumber}`);
+                return issueNumber;
             } else {
-                console.log(`HTTP ERROR FOR ${this.gameType}:`, response.status);
+                console.log(`ERROR GETTING ISSUE FOR ${this.gameType}:`, result.msg);
                 return "";
             }
-        } catch (error) {
-            console.error(`ERROR GETTING CURRENT ISSUE FOR ${this.gameType}:`, error.message);
-            
-            if (error.response) {
-                console.error('Error response data:', error.response.data);
-                console.error('Error response status:', error.response.status);
-                console.error('Error response headers:', error.response.headers);
-            } else if (error.request) {
-                console.error('No response received:', error.request);
-            } else {
-                console.error('Error setting up request:', error.message);
-            }
-            
+        } else {
+            console.log(`HTTP ERROR FOR ${this.gameType}:`, response.status);
             return "";
         }
+    } catch (error) {
+        console.error(`ERROR GETTING CURRENT ISSUE FOR ${this.gameType}:`, error.message);
+        
+        if (error.response) {
+            console.error('Error response data:', error.response.data);
+            console.error('Error response status:', error.response.status);
+        } else if (error.request) {
+            console.error('No response received:', error.request);
+        } else {
+            console.error('Error setting up request:', error.message);
+        }
+        
+        return "";
     }
+}
 
     async placeBet(amount, betType) {
         try {
@@ -620,6 +620,9 @@ class LotteryAPI {
 
     async getRecentResults(count = 10) {
     try {
+        console.log(`GETTING RECENT RESULTS FOR ${this.gameType}, COUNT: ${count}`);
+        
+        // TRX GAMES
         if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
             this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
             
@@ -634,35 +637,33 @@ class LotteryAPI {
                 typeId = 16;
             }
 
+            console.log(`TRX GAME TYPEID: ${typeId}`);
+            
+            // Method 1: Try GetNoaverageEmerdList for multiple results
             const body = {
-                "pageNo": 1,
                 "pageSize": count,
-                "language": 0,
+                "pageNo": 1,
                 "typeId": typeId,
-                "random": "6DEB0766860C42151A193692ED16D65A",
+                "language": 0,
+                "random": "9097feff12804debbd0564dfdd2825f7",
                 "timestamp": Math.floor(Date.now() / 1000)
             };
             body.signature = this.signMd5(body);
 
-            console.log(`GETTING TRX RESULTS FOR ${this.gameType}, COUNT: ${count}`);
+            console.log(`TRYING GetNoaverageEmerdList WITH BODY:`, JSON.stringify(body));
 
-            const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
-                headers: this.headers,
-                timeout: 10000
-            });
+            try {
+                const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
+                    headers: this.headers,
+                    timeout: 10000
+                });
 
-            console.log(`TRX RESULTS RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
+                console.log(`GetNoaverageEmerdList RESPONSE:`, JSON.stringify(response.data));
 
-            if (response.status === 200) {
-                const result = response.data;
-                if (result.msgCode === 0) {
-                    const dataStr = JSON.stringify(response.data);
-                    const startIdx = dataStr.indexOf('[');
-                    const endIdx = dataStr.lastIndexOf(']') + 1;
-                    
-                    if (startIdx !== -1 && endIdx !== -1) {
-                        const resultsJson = dataStr.substring(startIdx, endIdx);
-                        const results = JSON.parse(resultsJson);
+                if (response.status === 200) {
+                    const result = response.data;
+                    if (result.msgCode === 0 && result.data) {
+                        const results = Array.isArray(result.data) ? result.data : [result.data];
                         
                         const formattedResults = results.map(resultItem => {
                             const number = String(resultItem.number || '');
@@ -683,58 +684,67 @@ class LotteryAPI {
                             };
                         });
                         
-                        console.log(`RETURNING ${formattedResults.length} TRX RESULTS`);
+                        console.log(`RETURNING ${formattedResults.length} RESULTS FROM GetNoaverageEmerdList`);
                         return formattedResults;
-                    } else {
-                        console.log(`NO ARRAY FOUND IN TRX RESPONSE FOR ${this.gameType}`);
                     }
-                } else {
-                    console.log(`ERROR GETTING TRX RESULTS FOR ${this.gameType}:`, result.msg);
                 }
+            } catch (error1) {
+                console.log(`GetNoaverageEmerdList FAILED: ${error1.message}`);
             }
-            
-            // Fallback: Try to get single result from current issue
-            console.log(`USING FALLBACK FOR TRX RESULTS FOR ${this.gameType}`);
+
+            // Method 2: Fallback to GetTrxGameIssue for single result
+            console.log(`TRYING GetTrxGameIssue AS FALLBACK`);
             const body2 = {
                 "typeId": typeId,
                 "language": 0,
-                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "random": "8f45ae63e816466b82e36e6ac4d6ec73",
                 "timestamp": Math.floor(Date.now() / 1000)
             };
             body2.signature = this.signMd5(body2);
 
-            const response2 = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body2, {
-                headers: this.headers,
-                timeout: 10000
-            });
+            try {
+                const response2 = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body2, {
+                    headers: this.headers,
+                    timeout: 10000
+                });
 
-            if (response2.status === 200) {
-                const result2 = response2.data;
-                if (result2.msgCode === 0) {
-                    const settled = result2.data?.settled;
-                    if (settled) {
-                        const number = String(settled.number || '');
-                        let colour = 'UNKNOWN';
-                        if (['0', '5'].includes(number)) {
-                            colour = 'VIOLET';
-                        } else if (['1', '3', '7', '9'].includes(number)) {
-                            colour = 'GREEN';
-                        } else if (['2', '4', '6', '8'].includes(number)) {
-                            colour = 'RED';
+                console.log(`GetTrxGameIssue RESPONSE:`, JSON.stringify(response2.data));
+
+                if (response2.status === 200) {
+                    const result2 = response2.data;
+                    if (result2.msgCode === 0) {
+                        const settled = result2.data?.settled;
+                        if (settled) {
+                            const number = String(settled.number || '');
+                            let colour = 'UNKNOWN';
+                            if (['0', '5'].includes(number)) {
+                                colour = 'VIOLET';
+                            } else if (['1', '3', '7', '9'].includes(number)) {
+                                colour = 'GREEN';
+                            } else if (['2', '4', '6', '8'].includes(number)) {
+                                colour = 'RED';
+                            }
+                            
+                            const result = [{
+                                issueNumber: settled.issueNumber || settled.issue || '',
+                                number: number,
+                                colour: colour
+                            }];
+                            
+                            console.log(`RETURNING SINGLE RESULT FROM GetTrxGameIssue`);
+                            return result;
                         }
-                        
-                        return [{
-                            issueNumber: settled.issueNumber,
-                            number: number,
-                            colour: colour
-                        }];
                     }
                 }
+            } catch (error2) {
+                console.log(`GetTrxGameIssue ALSO FAILED: ${error2.message}`);
             }
             
+            console.log(`ALL METHODS FAILED FOR TRX RESULTS`);
             return [];
+            
         } else {
-            // WINGO games (original code)
+            // WINGO GAMES (existing code with improvement)
             let typeId;
             if (this.gameType === 'WINGO_30S') {
                 typeId = 30;
@@ -756,44 +766,44 @@ class LotteryAPI {
             };
             body.signature = this.signMd5(body);
 
+            console.log(`GETTING WINGO RESULTS WITH BODY:`, JSON.stringify(body));
+
             const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
                 headers: this.headers,
                 timeout: 10000
             });
 
+            console.log(`WINGO RESPONSE:`, JSON.stringify(response.data));
+
             if (response.status === 200) {
                 const result = response.data;
-                if (result.msgCode === 0) {
-                    const dataStr = JSON.stringify(response.data);
-                    const startIdx = dataStr.indexOf('[');
-                    const endIdx = dataStr.lastIndexOf(']') + 1;
+                if (result.msgCode === 0 && result.data) {
+                    const results = Array.isArray(result.data) ? result.data : [result.data];
                     
-                    if (startIdx !== -1 && endIdx !== -1) {
-                        const resultsJson = dataStr.substring(startIdx, endIdx);
-                        const results = JSON.parse(resultsJson);
-                        
-                        results.forEach(resultItem => {
-                            const number = String(resultItem.number || '');
-                            if (['0', '5'].includes(number)) {
-                                resultItem.colour = 'VIOLET';
-                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                resultItem.colour = 'GREEN';
-                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                resultItem.colour = 'RED';
-                            } else {
-                                resultItem.colour = 'UNKNOWN';
-                            }
-                        });
-                        
-                        return results;
-                    }
+                    results.forEach(resultItem => {
+                        const number = String(resultItem.number || '');
+                        if (['0', '5'].includes(number)) {
+                            resultItem.colour = 'VIOLET';
+                        } else if (['1', '3', '7', '9'].includes(number)) {
+                            resultItem.colour = 'GREEN';
+                        } else if (['2', '4', '6', '8'].includes(number)) {
+                            resultItem.colour = 'RED';
+                        } else {
+                            resultItem.colour = 'UNKNOWN';
+                        }
+                    });
+                    
+                    return results;
                 }
             }
             return [];
         }
     } catch (error) {
         console.error('Error getting recent results:', error.message);
-        console.error('Error stack:', error.stack);
+        if (error.response) {
+            console.error('Error response data:', error.response.data);
+            console.error('Error response status:', error.response.status);
+        }
         return [];
     }
 }
