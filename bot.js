@@ -635,69 +635,64 @@ class LotteryAPI {
                 typeId = 16;
             }
 
-            console.log(`GETTING TRX RESULTS FOR ${this.gameType}, TYPEID: ${typeId}`);
-
             const body = {
+                "pageSize": count,
+                "pageNo": 1,
                 "typeId": typeId,
                 "language": 0,
-                "random": "b05034ba4a2642009350ee863f29e2e9",
+                "random": this.randomKey(),
                 "timestamp": Math.floor(Date.now() / 1000)
             };
+            
+            console.log(`Getting TRX results for typeId: ${typeId}, count: ${count}`);
+            console.log('Request body:', JSON.stringify(body, null, 2));
+            
             body.signature = this.signMd5(body);
-
-            console.log(`TRX API REQUEST BODY:`, JSON.stringify(body));
 
             const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
                 headers: this.headers,
                 timeout: 10000
             });
 
-            console.log(`TRX API RESPONSE STATUS:`, response.status);
-            console.log(`TRX API RESPONSE DATA:`, JSON.stringify(response.data));
+            console.log('TRX Results Response:', JSON.stringify(response.data, null, 2));
 
             if (response.status === 200) {
                 const result = response.data;
                 if (result.msgCode === 0) {
                     const results = [];
                     
-                    // Check for settled data
-                    const settled = result.data?.settled;
-                    if (settled) {
-                        const number = String(settled.number || '');
-                        let colour = 'UNKNOWN';
-                        let resultType = 'UNKNOWN';
+                    // ပုံထဲကအတိုင်း response structure ကို handle လုပ်ပါ
+                    if (result.data && result.data.settledList) {
+                        const settledList = result.data.settledList;
                         
-                        if (['0', '5'].includes(number)) {
-                            colour = 'VIOLET';
-                        } else if (['1', '3', '7', '9'].includes(number)) {
-                            colour = 'GREEN';
-                        } else if (['2', '4', '6', '8'].includes(number)) {
-                            colour = 'RED';
+                        if (Array.isArray(settledList)) {
+                            settledList.forEach((item, index) => {
+                                const number = String(item.number || '');
+                                let colour = 'UNKNOWN';
+                                
+                                if (['0', '5'].includes(number)) {
+                                    colour = 'VIOLET';
+                                } else if (['1', '3', '7', '9'].includes(number)) {
+                                    colour = 'GREEN';
+                                } else if (['2', '4', '6', '8'].includes(number)) {
+                                    colour = 'RED';
+                                }
+                                
+                                results.push({
+                                    issueNumber: item.issueNumber || `TRX-${typeId}-${Date.now()}-${index}`,
+                                    number: number,
+                                    colour: colour,
+                                    resultType: ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG",
+                                    openTime: item.openTime || item.createdAt || ''
+                                });
+                            });
                         }
                         
-                        if (['0','1','2','3','4'].includes(number)) {
-                            resultType = "SMALL";
-                        } else {
-                            resultType = "BIG";
-                        }
-                        
-                        results.push({
-                            issueNumber: settled.issueNumber || settled.issueNo || '',
-                            number: number,
-                            colour: colour,
-                            resultType: resultType
-                        });
-                    }
-                    
-                    // Check for history data
-                    const history = result.data?.history || result.history;
-                    if (history && Array.isArray(history)) {
-                        history.forEach(item => {
-                            if (results.length >= count) return;
-                            
-                            const number = String(item.number || item.openCode || '');
+                        // လက်ရှိရလဒ်ကိုလည်းထည့်ပါ
+                        if (result.data.settled) {
+                            const settled = result.data.settled;
+                            const number = String(settled.number || '');
                             let colour = 'UNKNOWN';
-                            let resultType = 'UNKNOWN';
                             
                             if (['0', '5'].includes(number)) {
                                 colour = 'VIOLET';
@@ -707,78 +702,22 @@ class LotteryAPI {
                                 colour = 'RED';
                             }
                             
-                            if (['0','1','2','3','4'].includes(number)) {
-                                resultType = "SMALL";
-                            } else {
-                                resultType = "BIG";
-                            }
-                            
-                            results.push({
-                                issueNumber: item.issueNumber || item.issueNo || item.issue || '',
+                            results.unshift({
+                                issueNumber: settled.issueNumber || `TRX-${typeId}-current`,
                                 number: number,
                                 colour: colour,
-                                resultType: resultType
+                                resultType: ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG",
+                                openTime: settled.openTime || ''
                             });
-                        });
-                    }
-                    
-                    // If no results from settled/history, try to extract from data
-                    if (results.length === 0 && result.data) {
-                        console.log('Attempting to parse TRX data structure:', JSON.stringify(result.data));
-                        
-                        // Try different possible data structures
-                        const dataKeys = Object.keys(result.data);
-                        for (const key of dataKeys) {
-                            if (Array.isArray(result.data[key])) {
-                                const items = result.data[key];
-                                items.forEach(item => {
-                                    if (results.length >= count) return;
-                                    
-                                    if (item && typeof item === 'object') {
-                                        const number = String(item.number || item.openCode || item.result || '');
-                                        if (number && number.length === 1 && !isNaN(parseInt(number))) {
-                                            let colour = 'UNKNOWN';
-                                            let resultType = 'UNKNOWN';
-                                            
-                                            if (['0', '5'].includes(number)) {
-                                                colour = 'VIOLET';
-                                            } else if (['1', '3', '7', '9'].includes(number)) {
-                                                colour = 'GREEN';
-                                            } else if (['2', '4', '6', '8'].includes(number)) {
-                                                colour = 'RED';
-                                            }
-                                            
-                                            if (['0','1','2','3','4'].includes(number)) {
-                                                resultType = "SMALL";
-                                            } else {
-                                                resultType = "BIG";
-                                            }
-                                            
-                                            results.push({
-                                                issueNumber: item.issueNumber || item.issueNo || item.issue || key,
-                                                number: number,
-                                                colour: colour,
-                                                resultType: resultType
-                                            });
-                                        }
-                                    }
-                                });
-                            }
                         }
                     }
                     
-                    console.log(`TRX RESULTS FOUND: ${results.length}`);
-                    return results;
-                } else {
-                    console.log(`TRX API ERROR:`, result.msg);
-                    return [];
+                    console.log(`Parsed ${results.length} TRX results`);
+                    return results.slice(0, count);
                 }
-            } else {
-                console.log(`TRX HTTP ERROR:`, response.status);
-                return [];
             }
         } else {
-            // Existing WINGO code...
+            // မူလ WINGO results အတွက် code ကိုဆက်ထားပါ
             let typeId;
             if (this.gameType === 'WINGO_30S') {
                 typeId = 30;
@@ -800,8 +739,6 @@ class LotteryAPI {
             };
             body.signature = this.signMd5(body);
 
-            console.log(`GETTING WINGO RESULTS FOR ${this.gameType}, TYPEID: ${typeId}`);
-
             const response = await axios.post(`${this.baseUrl}GetNoaverageEmerdList`, body, {
                 headers: this.headers,
                 timeout: 10000
@@ -810,96 +747,41 @@ class LotteryAPI {
             if (response.status === 200) {
                 const result = response.data;
                 if (result.msgCode === 0) {
-                    const results = [];
+                    const dataStr = JSON.stringify(response.data);
+                    const startIdx = dataStr.indexOf('[');
+                    const endIdx = dataStr.indexOf(']') + 1;
                     
-                    // Try to parse data from different possible structures
-                    if (result.data && Array.isArray(result.data)) {
-                        result.data.forEach(item => {
-                            const number = String(item.number || '');
-                            let colour = 'UNKNOWN';
-                            let resultType = 'UNKNOWN';
-                            
+                    if (startIdx !== -1 && endIdx !== -1) {
+                        const resultsJson = dataStr.substring(startIdx, endIdx);
+                        const results = JSON.parse(resultsJson);
+                        
+                        results.forEach(resultItem => {
+                            const number = String(resultItem.number || '');
                             if (['0', '5'].includes(number)) {
-                                colour = 'VIOLET';
+                                resultItem.colour = 'VIOLET';
                             } else if (['1', '3', '7', '9'].includes(number)) {
-                                colour = 'GREEN';
+                                resultItem.colour = 'GREEN';
                             } else if (['2', '4', '6', '8'].includes(number)) {
-                                colour = 'RED';
-                            }
-                            
-                            if (['0','1','2','3','4'].includes(number)) {
-                                resultType = "SMALL";
+                                resultItem.colour = 'RED';
                             } else {
-                                resultType = "BIG";
+                                resultItem.colour = 'UNKNOWN';
                             }
                             
-                            results.push({
-                                issueNumber: item.issueNumber || item.issue || '',
-                                number: number,
-                                colour: colour,
-                                resultType: resultType
-                            });
+                            resultItem.resultType = ['0','1','2','3','4'].includes(number) ? "SMALL" : "BIG";
                         });
-                    } else if (result.data && typeof result.data === 'object') {
-                        // Try to extract from object
-                        const dataStr = JSON.stringify(result.data);
-                        const match = dataStr.match(/\[.*?\]/);
-                        if (match) {
-                            try {
-                                const items = JSON.parse(match[0]);
-                                items.forEach(item => {
-                                    const number = String(item.number || '');
-                                    let colour = 'UNKNOWN';
-                                    let resultType = 'UNKNOWN';
-                                    
-                                    if (['0', '5'].includes(number)) {
-                                        colour = 'VIOLET';
-                                    } else if (['1', '3', '7', '9'].includes(number)) {
-                                        colour = 'GREEN';
-                                    } else if (['2', '4', '6', '8'].includes(number)) {
-                                        colour = 'RED';
-                                    }
-                                    
-                                    if (['0','1','2','3','4'].includes(number)) {
-                                        resultType = "SMALL";
-                                    } else {
-                                        resultType = "BIG";
-                                    }
-                                    
-                                    results.push({
-                                        issueNumber: item.issueNumber || item.issue || '',
-                                        number: number,
-                                        colour: colour,
-                                        resultType: resultType
-                                    });
-                                });
-                            } catch (e) {
-                                console.error('Error parsing WINGO results:', e);
-                            }
-                        }
+                        
+                        return results;
                     }
-                    
-                    console.log(`WINGO RESULTS FOUND: ${results.length}`);
-                    return results;
-                } else {
-                    console.log(`WINGO API ERROR:`, result.msg);
-                    return [];
                 }
-            } else {
-                console.log(`WINGO HTTP ERROR:`, response.status);
-                return [];
             }
         }
+        return [];
     } catch (error) {
-        console.error(`Error getting recent results for ${this.gameType}:`, error.message);
-        
+        console.error('Error getting recent results:', error.message);
         if (error.response) {
             console.error('Error response data:', error.response.data);
             console.error('Error response status:', error.response.status);
-        } else if (error.request) {
-            console.error('No response received:', error.request);
         }
-        
         return [];
     }
 }
