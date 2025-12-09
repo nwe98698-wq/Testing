@@ -2850,13 +2850,6 @@ Choose your betting mode:`;
         // စုစုပေါင်း ရလဒ်ကို ထည့်ရေး
         const totalAmount = winCount + loseCount;
         const winRate = totalAmount > 0 ? Math.round((winCount / totalAmount) * 100) : 0;
-        
-        betsText += `\nSummary:\n`;
-        betsText += `Total Bets: ${totalAmount}\n`;
-        betsText += `Wins: ${winCount}\n`;
-        betsText += `Losses: ${loseCount}\n`;
-        betsText += `Win Rate: ${winRate}%\n`;
-        betsText += `Net Profit: ${totalProfit > 0 ? '+' : ''}${totalProfit.toLocaleString()}K`;
 
         await this.bot.sendMessage(chatId, betsText);
     } catch (error) {
