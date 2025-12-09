@@ -773,8 +773,6 @@ class LotteryAPI {
             return [];
         }
     }
-}
-
 
 
 class AutoLotteryBot {
