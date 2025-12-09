@@ -2803,55 +2803,67 @@ Choose your betting mode:`;
     }
 
     async showMyBets(chatId, userId) {
-        const userSession = this.ensureUserSession(userId);
+    const userSession = this.ensureUserSession(userId);
+    
+    if (!userSession.loggedIn) {
+        await this.bot.sendMessage(chatId, "Please login first!");
+        return;
+    }
+
+    try {
+        const platform = userSession.platform || '777';
+        const myBets = await this.getBetHistory(userId, platform, 10);
         
-        if (!userSession.loggedIn) {
-            await this.bot.sendMessage(chatId, "Please login first!");
+        if (!myBets || myBets.length === 0) {
+            await this.bot.sendMessage(chatId, "No bet history found.");
             return;
         }
 
-        try {
-            const platform = userSession.platform || '777';
-            const myBets = await this.getBetHistory(userId, platform, 10);
+        const platformName = '777 Big Win';
+        const gameType = userSession.gameType || 'WINGO';
+
+        let betsText = `Your Recent Bets - ${platformName} (${gameType})\n\n`;
+        
+        let totalProfit = 0;
+        let winCount = 0;
+        let loseCount = 0;
+        
+        myBets.forEach((bet, i) => {
+            let resultText = "";
             
-            if (!myBets || myBets.length === 0) {
-                await this.bot.sendMessage(chatId, "No bet history found.");
-                return;
+            if (bet.result === "WIN") {
+                // Win ရင် bet amount + win amount ပေါင်းပြမယ်
+                const totalWin = bet.amount + bet.profit_loss;
+                resultText = `WIN (+${totalWin.toLocaleString()}K)`;
+                winCount++;
+                totalProfit += bet.profit_loss;
+            } else {
+                resultText = `LOSE (-${bet.amount.toLocaleString()}K)`;
+                loseCount++;
+                totalProfit -= bet.amount;
             }
-
-            const platformName = '777 Big Win';
-            const gameType = userSession.gameType || 'WINGO';
-
-            let betsText = `Your Recent Bets - ${platformName} (${gameType})\n\n`;
             
-            let totalProfit = 0;
-            let winCount = 0;
-            let loseCount = 0;
-            
-            myBets.forEach((bet, i) => {
-                const resultText = bet.result === "WIN" ? 
-                    `WIN (+${(bet.profit_loss).toLocaleString()}K)` : 
-                    `LOSE (-${bet.amount.toLocaleString()}K)`;
-                
-                const timeStr = bet.created_at.split(' ')[1]?.substring(0, 5) || bet.created_at.substring(11, 16);
-                betsText += `${i+1}. ${bet.issue} - ${bet.bet_type} - ${bet.amount.toLocaleString()}K - ${resultText}\n`;
-                
-                if (bet.result === "WIN") {
-                    winCount++;
-                    totalProfit += bet.profit_loss;
-                } else {
-                    loseCount++;
-                    totalProfit -= bet.amount;
-                }
-            });
+            const timeStr = bet.created_at.split(' ')[1]?.substring(0, 5) || bet.created_at.substring(11, 16);
+            betsText += `${i+1}. ${bet.issue} - ${bet.bet_type} - ${bet.amount.toLocaleString()}K - ${resultText}\n`;
+        });
 
+        // စုစုပေါင်း ရလဒ်ကို ထည့်ရေး
+        const totalAmount = winCount + loseCount;
+        const winRate = totalAmount > 0 ? Math.round((winCount / totalAmount) * 100) : 0;
+        
+        betsText += `\nSummary:\n`;
+        betsText += `Total Bets: ${totalAmount}\n`;
+        betsText += `Wins: ${winCount}\n`;
+        betsText += `Losses: ${loseCount}\n`;
+        betsText += `Win Rate: ${winRate}%\n`;
+        betsText += `Net Profit: ${totalProfit > 0 ? '+' : ''}${totalProfit.toLocaleString()}K`;
 
-            await this.bot.sendMessage(chatId, betsText);
-        } catch (error) {
-            console.error(`Error showing my bets for user ${userId}:`, error);
-            await this.bot.sendMessage(chatId, "Error getting bet history. Please try again.");
-        }
+        await this.bot.sendMessage(chatId, betsText);
+    } catch (error) {
+        console.error(`Error showing my bets for user ${userId}:`, error);
+        await this.bot.sendMessage(chatId, "Error getting bet history. Please try again.");
     }
+}
 
     async showBotInfo(chatId, userId) {
         const userSession = this.ensureUserSession(userId);
