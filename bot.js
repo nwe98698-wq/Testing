@@ -4,7 +4,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // BOT CONFIGURATION
-const BOT_TOKEN = "8308226058:AAEiPBihhrgllH18VneeflOS0jVgNqSKLUE";
+const BOT_TOKEN = "8308226058:AAFyo1U4tQVyKhPU8umajaO34roVYaC2EXM";
 const CHANNEL_USERNAME = "@Vipsafesingalchannel298";
 const CHANNEL_LINK = "https://t.me/Vipsafesingalchannel298";
 const ADMIN_USER_ID = "6328953001";
@@ -310,16 +310,16 @@ class LotteryAPI {
             
             if (this.gameType === 'TRX') {
                 typeId = 13;
-                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+                endpoint = 'GetTrxGameIssue';
             } else if (this.gameType === 'TRX_3MIN') {
                 typeId = 14;
-                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+                endpoint = 'GetTrxGameIssue';
             } else if (this.gameType === 'TRX_5MIN') {
                 typeId = 15;
-                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+                endpoint = 'GetTrxGameIssue';
             } else if (this.gameType === 'TRX_10MIN') {
                 typeId = 16;
-                endpoint = 'GetTRXGameIssue'; // Changed to GetTRXGameIssue
+                endpoint = 'GetTrxGameIssue';
             } else if (this.gameType === 'WINGO_30S') {
                 typeId = 30;
                 endpoint = 'GetGameIssue';
@@ -342,7 +342,7 @@ class LotteryAPI {
             };
             body.signature = this.signMd5(body);
 
-            console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, TYPEID: ${typeId}, ENDPOINT: ${endpoint}`);
+            console.log(`GETTING CURRENT ISSUE FOR ${this.gameType}, TYPEID: ${typeId}`);
 
             const response = await axios.post(`${this.baseUrl}${endpoint}`, body, {
                 headers: this.headers,
@@ -357,13 +357,12 @@ class LotteryAPI {
                 if (result.msgCode === 0) {
                     let issueNumber = '';
                     
-                    // TRX GAMES - using new TRX endpoints
+                    // TRX GAMES
                     if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
                         this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
                         issueNumber = result.data?.predraw?.issueNumber || 
                                      result.data?.issueNumber || 
-                                     result.issueNumber || 
-                                     result.data?.currentIssue || '';
+                                     result.issueNumber || '';
                     } 
                     // WINGO 30S GAME
                     else if (this.gameType === 'WINGO_30S') {
@@ -622,7 +621,6 @@ class LotteryAPI {
 
     async getRecentResults(count = 10) {
         try {
-            // TRX GAMES - using new TRX endpoint
             if (this.gameType === 'TRX' || this.gameType === 'TRX_3MIN' || 
                 this.gameType === 'TRX_5MIN' || this.gameType === 'TRX_10MIN') {
                 
@@ -639,79 +637,41 @@ class LotteryAPI {
 
                 const body = {
                     "typeId": typeId,
-                    "pageNo": 1,
-                    "pageSize": count,
                     "language": 0,
                     "random": "b05034ba4a2642009350ee863f29e2e9",
                     "timestamp": Math.floor(Date.now() / 1000)
                 };
                 body.signature = this.signMd5(body);
 
-                // Using GetTRXNoaverageEmerdList for TRX results
-                const response = await axios.post(`${this.baseUrl}GetTRXNoaverageEmerdList`, body, {
+                const response = await axios.post(`${this.baseUrl}GetTrxGameIssue`, body, {
                     headers: this.headers,
                     timeout: 10000
                 });
 
-                console.log(`TRX RESULTS RESPONSE FOR ${this.gameType}:`, JSON.stringify(response.data));
-
                 if (response.status === 200) {
                     const result = response.data;
                     if (result.msgCode === 0) {
-                        const dataStr = JSON.stringify(response.data);
-                        const startIdx = dataStr.indexOf('[');
-                        const endIdx = dataStr.indexOf(']') + 1;
-                        
-                        if (startIdx !== -1 && endIdx !== -1) {
-                            const resultsJson = dataStr.substring(startIdx, endIdx);
-                            const results = JSON.parse(resultsJson);
-                            
-                            const formattedResults = results.map(resultItem => {
-                                const issueNumber = resultItem.issueNumber || resultItem.issue || '';
-                                const number = String(resultItem.number || resultItem.openNumber || '');
-                                
-                                let colour = 'UNKNOWN';
-                                if (['0', '5'].includes(number)) {
-                                    colour = 'VIOLET';
-                                } else if (['1', '3', '7', '9'].includes(number)) {
-                                    colour = 'GREEN';
-                                } else if (['2', '4', '6', '8'].includes(number)) {
-                                    colour = 'RED';
-                                }
-                                
-                                return {
-                                    issueNumber: issueNumber,
-                                    number: number,
-                                    colour: colour
-                                };
-                            });
-                            
-                            return formattedResults;
-                        } else {
-                            // Try alternative format for TRX
-                            const settled = result.data?.settled;
-                            if (settled) {
-                                const number = String(settled.number || '');
-                                let colour = 'UNKNOWN';
-                                if (['0', '5'].includes(number)) {
-                                    colour = 'VIOLET';
-                                } else if (['1', '3', '7', '9'].includes(number)) {
-                                    colour = 'GREEN';
-                                } else if (['2', '4', '6', '8'].includes(number)) {
-                                    colour = 'RED';
-                                }
-                                
-                                return [{
-                                    issueNumber: settled.issueNumber,
-                                    number: number,
-                                    colour: colour
-                                }];
+                        const settled = result.data?.settled;
+                        if (settled) {
+                            const number = String(settled.number || '');
+                            let colour = 'UNKNOWN';
+                            if (['0', '5'].includes(number)) {
+                                colour = 'VIOLET';
+                            } else if (['1', '3', '7', '9'].includes(number)) {
+                                colour = 'GREEN';
+                            } else if (['2', '4', '6', '8'].includes(number)) {
+                                colour = 'RED';
                             }
+                            
+                            return [{
+                                issueNumber: settled.issueNumber,
+                                number: number,
+                                colour: colour
+                            }];
                         }
                     }
                 }
             } else {
-                // WINGO GAMES (existing code)
                 let typeId;
                 if (this.gameType === 'WINGO_30S') {
                     typeId = 30;
@@ -769,7 +729,7 @@ class LotteryAPI {
             }
             return [];
         } catch (error) {
-            console.error(`Error getting recent results for ${this.gameType}:`, error.message);
+            console.error('Error getting recent results:', error.message);
             return [];
         }
     }
