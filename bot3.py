@@ -1215,6 +1215,30 @@ def get_localized_message(message_key, language='english'):
     }
     
     return messages.get(language, messages['english']).get(message_key, message_key)
+    
+    def get_wingo_trx_keyboard(user_id=None):  # ✅ CORRECT: This should be a separate function
+    """Get WINGO/TRX selection keyboard with localized text"""
+    if user_id:
+        language = get_user_language(user_id)
+    else:
+        language = 'english'
+    
+    button_texts = {
+        'wingo_30s': "WINGO 30s",
+        'wingo_1min': "WINGO 1min",
+        'wingo_3min': "WINGO 3min",
+        'wingo_5min': "WINGO 5min",
+        'trx_1min': "TRX 1min",
+        'back_main_menu': get_localized_message('back_main_menu', language)
+    }
+    
+    keyboard = [
+        [KeyboardButton(button_texts['wingo_30s']), KeyboardButton(button_texts['wingo_1min'])],
+        [KeyboardButton(button_texts['wingo_3min']), KeyboardButton(button_texts['wingo_5min'])],
+        [KeyboardButton(button_texts['trx_1min'])],
+        [KeyboardButton(button_texts['back_main_menu'])]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_main_keyboard(user_id=None):
     """Get main keyboard with localized text"""
@@ -1258,29 +1282,7 @@ def get_main_keyboard(user_id=None):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     # ❌ WRONG: get_wingo_trx_keyboard() function was incorrectly placed here
     
-def get_wingo_trx_keyboard(user_id=None):  # ✅ CORRECT: This should be a separate function
-    """Get WINGO/TRX selection keyboard with localized text"""
-    if user_id:
-        language = get_user_language(user_id)
-    else:
-        language = 'english'
-    
-    button_texts = {
-        'wingo_30s': "WINGO 30s",
-        'wingo_1min': "WINGO 1min",
-        'wingo_3min': "WINGO 3min",
-        'wingo_5min': "WINGO 5min",
-        'trx_1min': "TRX 1min",
-        'back_main_menu': get_localized_message('back_main_menu', language)
-    }
-    
-    keyboard = [
-        [KeyboardButton(button_texts['wingo_30s']), KeyboardButton(button_texts['wingo_1min'])],
-        [KeyboardButton(button_texts['wingo_3min']), KeyboardButton(button_texts['wingo_5min'])],
-        [KeyboardButton(button_texts['trx_1min'])],
-        [KeyboardButton(button_texts['back_main_menu'])]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 def get_bot_settings_keyboard(user_id=None):
     """Get bot settings keyboard with localized text"""
