@@ -1670,6 +1670,32 @@ async def get_current_issue(self, game_type='DEFAULT'):
             logger.error(f"Get user info error for {self.platform}: {e}")
             return {}
     
+    async def get_balance(self):
+        """Get user balance"""
+        try:
+            body = {
+                "language": 0,
+                "random": "9078efc98754430e92e51da59eb2563c",
+                "timestamp": int(time.time())
+            }
+            body["signature"] = self.sign_md5(body).upper()
+            
+            response = requests.post(
+                f"{self.base_url}GetBalance",
+                headers=self.headers,
+                json=body,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('msgCode') == 0:
+                    return result.get('data', {}).get('amount', 0)
+            return 0
+        except Exception as e:
+            logger.error(f"Get balance error for {self.platform}: {e}")
+            return 0
+    
     
         
     async def place_bet(self, amount, bet_type, game_type='DEFAULT'):
