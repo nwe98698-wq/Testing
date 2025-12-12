@@ -2005,6 +2005,19 @@ def get_platform_name(platform_code):
 async def ck_login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start CK login process"""
     user_id = str(update.effective_user.id)
+    
+    # 🔧 FIX: Initialize user session if it doesn't exist
+    if user_id not in user_sessions:
+        user_sessions[user_id] = {
+            'step': 'main',
+            'phone': '',
+            'password': '',
+            'platform': 'ck',
+            'logged_in': False,
+            'api_instance': None,
+            'current_game_type': 'WINGO_1MIN'
+        }
+    
     user_sessions[user_id]['step'] = 'login'
     user_sessions[user_id]['platform'] = 'ck'
     user_sessions[user_id]['api_instance'] = LotteryBot('ck')
@@ -2026,6 +2039,19 @@ Please follow these steps:
 async def six_login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start 6 Lottery login process"""
     user_id = str(update.effective_user.id)
+    
+    # 🔧 FIX: Initialize user session if it doesn't exist
+    if user_id not in user_sessions:
+        user_sessions[user_id] = {
+            'step': 'main',
+            'phone': '',
+            'password': '',
+            'platform': 'ck',
+            'logged_in': False,
+            'api_instance': None,
+            'current_game_type': 'WINGO_1MIN'
+        }
+    
     user_sessions[user_id]['step'] = 'login'
     user_sessions[user_id]['platform'] = '6'
     user_sessions[user_id]['api_instance'] = LotteryBot('6')
@@ -4831,6 +4857,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     language = get_user_language(user_id)
     
+    # 🔧 FIX: Initialize user session if it doesn't exist
+    if user_id not in user_sessions:
+        user_sessions[user_id] = {
+            'step': 'main',
+            'phone': '',
+            'password': '',
+            'platform': 'ck',
+            'logged_in': False,
+            'api_instance': None,
+            'current_game_type': 'WINGO_1MIN'
+        }
+    
     if not get_channel_status(user_id):
         has_joined = await check_channel_membership(update, context, update.effective_user.id)
         if not has_joined:
@@ -4841,7 +4879,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
     
     text = update.message.text
-    user_session = user_sessions.get(user_id, {'step': 'main'})
+    user_session = user_sessions[user_id]  # 🔧 Now this will always exist
+    
+    # ... rest of the function ...
     
     # Get ALL localized button texts for comparison
     localized_texts = {
