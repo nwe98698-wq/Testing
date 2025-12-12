@@ -1567,108 +1567,110 @@ class LotteryBot:
     
     # LotteryBot class ထဲမှာ get_current_issue function ကိုရှာပြီး အောက်က code နဲ့ အစားထိုးပါ
 
+# LotteryBot class ထဲမှာ get_current_issue function ကိုရှာပြီး အောက်က code နဲ့ အစားထိုးပါ
+
 async def get_current_issue(self, game_type='DEFAULT'):
-        """Get current game issue for specific game type"""
-        try:
-            type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
-            
-            # Check if it's TRX game
-            if game_type == 'TRX_1MIN':
-                if self.platform == '6':
-                    # 6 Lottery TRX အတွက် သီးသန့် API endpoint
-                    endpoint = "GetTRXGameIssue"
-                    body = {
-                        "typeId": type_id,  # TRX အတွက် typeId 13
-                        "language": 7,      # TRX အတွက် language 7
-                        "random": self.random_key(),
-                        "timestamp": int(time.time())
-                    }
-                else:
-                    # သာမန် TRX အတွက်
-                    endpoint = "GetTRXGameIssue"
-                    body = {
-                        "typeId": type_id,
-                        "language": 0,
-                        "random": self.random_key(),
-                        "timestamp": int(time.time())
-                    }
+    """Get current game issue for specific game type"""
+    try:
+        type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
+        
+        # Check if it's TRX game
+        if game_type == 'TRX_1MIN':
+            if self.platform == '6':
+                # 6 Lottery TRX အတွက် သီးသန့် API endpoint
+                endpoint = "GetTRXGameIssue"
+                body = {
+                    "typeId": type_id,  # TRX အတွက် typeId 13
+                    "language": 7,      # TRX အတွက် language 7
+                    "random": self.random_key(),
+                    "timestamp": int(time.time())
+                }
             else:
-                # Normal games
-                endpoint = "GetGameIssue"
+                # သာမန် TRX အတွက်
+                endpoint = "GetTRXGameIssue"
                 body = {
                     "typeId": type_id,
                     "language": 0,
                     "random": self.random_key(),
                     "timestamp": int(time.time())
                 }
-            
-            body["signature"] = self.sign_md5(body).upper()
-            
-            response = requests.post(
-                f"{self.base_url}{endpoint}",
-                headers=self.headers,
-                json=body,
-                timeout=10
-            )
-            
-            logger.info(f"Get {game_type} issue API Response: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('msgCode') == 0:
-                    data = result.get('data', {})
-                    
-                    # Check different response formats
-                    if isinstance(data, dict):
-                        issue_number = data.get('issueNumber', '')
-                    elif isinstance(data, str):
-                        # Some APIs return issue directly in data
-                        issue_number = data
-                    else:
-                        issue_number = str(data) if data else ''
-                    
-                    # If issue number is still empty, check other possible fields
-                    if not issue_number:
-                        issue_number = data.get('issuenumber', data.get('issue', ''))
-                    
-                    logger.info(f"{self.platform.upper()} {game_type} Current Issue: {issue_number}")
-                    return issue_number
-                else:
-                    logger.error(f"Get {game_type} issue API error: {result.get('msg', 'Unknown error')}")
-            else:
-                logger.error(f"Get {game_type} issue API connection failed: {response.status_code}")
-                
-            return ""
-            
-        except Exception as e:
-            logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
-            return ""
-
-    async def get_user_info(self):
-        """Get user information"""
-        try:
+        else:
+            # Normal games
+            endpoint = "GetGameIssue"
             body = {
+                "typeId": type_id,
                 "language": 0,
-                "random": "9078efc98754430e92e51da59eb2563c",
+                "random": self.random_key(),
                 "timestamp": int(time.time())
             }
-            body["signature"] = self.sign_md5(body).upper()
+        
+        body["signature"] = self.sign_md5(body).upper()
+        
+        response = requests.post(
+            f"{self.base_url}{endpoint}",
+            headers=self.headers,
+            json=body,
+            timeout=10
+        )
+        
+        logger.info(f"Get {game_type} issue API Response: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('msgCode') == 0:
+                data = result.get('data', {})
+                
+                # Check different response formats
+                if isinstance(data, dict):
+                    issue_number = data.get('issueNumber', '')
+                elif isinstance(data, str):
+                    # Some APIs return issue directly in data
+                    issue_number = data
+                else:
+                    issue_number = str(data) if data else ''
+                
+                # If issue number is still empty, check other possible fields
+                if not issue_number:
+                    issue_number = data.get('issuenumber', data.get('issue', ''))
+                
+                logger.info(f"{self.platform.upper()} {game_type} Current Issue: {issue_number}")
+                return issue_number
+            else:
+                logger.error(f"Get {game_type} issue API error: {result.get('msg', 'Unknown error')}")
+        else:
+            logger.error(f"Get {game_type} issue API connection failed: {response.status_code}")
             
-            response = requests.post(
-                f"{self.base_url}GetUserInfo",
-                headers=self.headers,
-                json=body,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('msgCode') == 0:
-                    return result.get('data', {})
-            return {}
-        except Exception as e:
-            logger.error(f"Get user info error for {self.platform}: {e}")
-            return {}
+        return ""
+        
+    except Exception as e:
+        logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
+        return ""
+
+    async def get_user_info(self):
+    """Get user information"""
+    try:
+        body = {
+            "language": 0,
+            "random": "9078efc98754430e92e51da59eb2563c",
+            "timestamp": int(time.time())
+        }
+        body["signature"] = self.sign_md5(body).upper()
+        
+        response = requests.post(
+            f"{self.base_url}GetUserInfo",
+            headers=self.headers,
+            json=body,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('msgCode') == 0:
+                return result.get('data', {})
+        return {}
+    except Exception as e:
+        logger.error(f"Get user info error for {self.platform}: {e}")
+        return {}
 
     async def get_balance(self):
         """Get user balance"""
