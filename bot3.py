@@ -1473,13 +1473,13 @@ class LotteryBot:
         
         # Game Type IDs - NEW: WINGO/TRX type IDs
         self.game_type_ids = {
-    'WINGO_30S': 30,    # WINGO 30s
-    'WINGO_1MIN': 1,    # WINGO 1min
-    'WINGO_3MIN': 2,    # WINGO 3min
-    'WINGO_5MIN': 3,    # WINGO 5min
-    'TRX_1MIN': 13,     # TRX 1min - 6 Lottery အတွက် typeId 13
-    'DEFAULT': 1        # Default
-}
+            'WINGO_30S': 30,    # WINGO 30s
+            'WINGO_1MIN': 1,    # WINGO 1min
+            'WINGO_3MIN': 2,    # WINGO 3min
+            'WINGO_5MIN': 3,    # WINGO 5min
+            'TRX_1MIN': 13,     # TRX 1min - 6 Lottery အတွက် typeId 13
+            'DEFAULT': 1        # Default
+        }
         
     def sign_md5(self, data_dict):
         """Generate MD5 signature for API requests"""
@@ -1565,11 +1565,7 @@ class LotteryBot:
             logger.error(f"Login error for {self.platform}: {e}")
             return False, f"Login error: {str(e)}", ""
     
-    # LotteryBot class ထဲမှာ get_current_issue function ကိုရှာပြီး အောက်က code နဲ့ အစားထိုးပါ
-
-# LotteryBot class ထဲမှာ get_current_issue function ကိုရှာပြီး အောက်က code နဲ့ အစားထိုးပါ
-
-async def get_current_issue(self, game_type='DEFAULT'):
+    async def get_current_issue(self, game_type='DEFAULT'):
         """Get current game issue for specific game type"""
         try:
             type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
@@ -1645,7 +1641,7 @@ async def get_current_issue(self, game_type='DEFAULT'):
         except Exception as e:
             logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
             return ""
-
+    
     async def get_user_info(self):
         """Get user information"""
         try:
@@ -1671,7 +1667,7 @@ async def get_current_issue(self, game_type='DEFAULT'):
         except Exception as e:
             logger.error(f"Get user info error for {self.platform}: {e}")
             return {}
-
+    
     async def get_balance(self):
         """Get user balance"""
         try:
