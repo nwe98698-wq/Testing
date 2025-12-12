@@ -1215,30 +1215,6 @@ def get_localized_message(message_key, language='english'):
     }
     
     return messages.get(language, messages['english']).get(message_key, message_key)
-    
-    def get_wingo_trx_keyboard(user_id=None):  # ✅ CORRECT: This should be a separate function
-    """Get WINGO/TRX selection keyboard with localized text"""
-    if user_id:
-        language = get_user_language(user_id)
-    else:
-        language = 'english'
-    
-    button_texts = {
-        'wingo_30s': "WINGO 30s",
-        'wingo_1min': "WINGO 1min",
-        'wingo_3min': "WINGO 3min",
-        'wingo_5min': "WINGO 5min",
-        'trx_1min': "TRX 1min",
-        'back_main_menu': get_localized_message('back_main_menu', language)
-    }
-    
-    keyboard = [
-        [KeyboardButton(button_texts['wingo_30s']), KeyboardButton(button_texts['wingo_1min'])],
-        [KeyboardButton(button_texts['wingo_3min']), KeyboardButton(button_texts['wingo_5min'])],
-        [KeyboardButton(button_texts['trx_1min'])],
-        [KeyboardButton(button_texts['back_main_menu'])]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_main_keyboard(user_id=None):
     """Get main keyboard with localized text"""
@@ -1280,9 +1256,30 @@ def get_main_keyboard(user_id=None):
         [KeyboardButton(button_texts['run_bot']), KeyboardButton(button_texts['stop_bot'])]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    # ❌ WRONG: get_wingo_trx_keyboard() function was incorrectly placed here
-    
 
+def get_wingo_trx_keyboard(user_id=None):
+    """Get WINGO/TRX selection keyboard with localized text"""
+    if user_id:
+        language = get_user_language(user_id)
+    else:
+        language = 'english'
+    
+    button_texts = {
+        'wingo_30s': "WINGO 30s",
+        'wingo_1min': "WINGO 1min",
+        'wingo_3min': "WINGO 3min",
+        'wingo_5min': "WINGO 5min",
+        'trx_1min': "TRX 1min",
+        'back_main_menu': get_localized_message('back_main_menu', language)
+    }
+    
+    keyboard = [
+        [KeyboardButton(button_texts['wingo_30s']), KeyboardButton(button_texts['wingo_1min'])],
+        [KeyboardButton(button_texts['wingo_3min']), KeyboardButton(button_texts['wingo_5min'])],
+        [KeyboardButton(button_texts['trx_1min'])],
+        [KeyboardButton(button_texts['back_main_menu'])]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_bot_settings_keyboard(user_id=None):
     """Get bot settings keyboard with localized text"""
@@ -1654,12 +1651,12 @@ class LotteryBot:
         except Exception as e:
             logger.error(f"Get user info error for {self.platform}: {e}")
             return {}
-            
-            async def wingo_trx_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show WINGO/TRX selection menu"""
-    user_id = str(update.effective_user.id)
     
-    menu_text = """
+    async def wingo_trx_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show WINGO/TRX selection menu"""
+        user_id = str(update.effective_user.id)
+        
+        menu_text = """
 🎮 **WINGO/TRX Game Selection**
 
 Please select a game type:
@@ -1674,95 +1671,95 @@ Please select a game type:
 • TRX 1min - TRX 1-minute games
 
 Select a game to start betting:
-    """
-    
-    await update.message.reply_text(menu_text, reply_markup=get_wingo_trx_keyboard(user_id), parse_mode='Markdown')
+        """
+        
+        await update.message.reply_text(menu_text, reply_markup=get_wingo_trx_keyboard(user_id), parse_mode='Markdown')
 
-async def wingo_30s_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle WINGO 30s bet"""
-    user_id = str(update.effective_user.id)
-    user_session = user_sessions.get(user_id, {})
-    
-    if not user_session.get('logged_in'):
-        await update.message.reply_text("❌ Please login first!")
-        return
-    
-    user_session['current_game_type'] = 'WINGO_30S'
-    await update.message.reply_text(
-        "🎮 **WINGO 30s Selected**\n\n"
-        "Now you can place bets for WINGO 30s games.\n"
-        "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-        reply_markup=get_main_keyboard(user_id)
-    )
+    async def wingo_30s_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 30s bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_30S'
+        await update.message.reply_text(
+            "🎮 **WINGO 30s Selected**\n\n"
+            "Now you can place bets for WINGO 30s games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
 
-async def wingo_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle WINGO 1min bet"""
-    user_id = str(update.effective_user.id)
-    user_session = user_sessions.get(user_id, {})
-    
-    if not user_session.get('logged_in'):
-        await update.message.reply_text("❌ Please login first!")
-        return
-    
-    user_session['current_game_type'] = 'WINGO_1MIN'
-    await update.message.reply_text(
-        "🎮 **WINGO 1min Selected**\n\n"
-        "Now you can place bets for WINGO 1min games.\n"
-        "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-        reply_markup=get_main_keyboard(user_id)
-    )
+    async def wingo_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 1min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_1MIN'
+        await update.message.reply_text(
+            "🎮 **WINGO 1min Selected**\n\n"
+            "Now you can place bets for WINGO 1min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
 
-async def wingo_3min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle WINGO 3min bet"""
-    user_id = str(update.effective_user.id)
-    user_session = user_sessions.get(user_id, {})
-    
-    if not user_session.get('logged_in'):
-        await update.message.reply_text("❌ Please login first!")
-        return
-    
-    user_session['current_game_type'] = 'WINGO_3MIN'
-    await update.message.reply_text(
-        "🎮 **WINGO 3min Selected**\n\n"
-        "Now you can place bets for WINGO 3min games.\n"
-        "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-        reply_markup=get_main_keyboard(user_id)
-    )
+    async def wingo_3min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 3min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_3MIN'
+        await update.message.reply_text(
+            "🎮 **WINGO 3min Selected**\n\n"
+            "Now you can place bets for WINGO 3min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
 
-async def wingo_5min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle WINGO 5min bet"""
-    user_id = str(update.effective_user.id)
-    user_session = user_sessions.get(user_id, {})
-    
-    if not user_session.get('logged_in'):
-        await update.message.reply_text("❌ Please login first!")
-        return
-    
-    user_session['current_game_type'] = 'WINGO_5MIN'
-    await update.message.reply_text(
-        "🎮 **WINGO 5min Selected**\n\n"
-        "Now you can place bets for WINGO 5min games.\n"
-        "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-        reply_markup=get_main_keyboard(user_id)
-    )
+    async def wingo_5min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 5min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_5MIN'
+        await update.message.reply_text(
+            "🎮 **WINGO 5min Selected**\n\n"
+            "Now you can place bets for WINGO 5min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
 
-async def trx_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle TRX 1min bet"""
-    user_id = str(update.effective_user.id)
-    user_session = user_sessions.get(user_id, {})
-    
-    if not user_session.get('logged_in'):
-        await update.message.reply_text("❌ Please login first!")
-        return
-    
-    user_session['current_game_type'] = 'TRX_1MIN'
-    await update.message.reply_text(
-        "🎮 **TRX 1min Selected**\n\n"
-        "Now you can place bets for TRX 1min games.\n"
-        "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-        reply_markup=get_main_keyboard(user_id)
-    )
-    
+    async def trx_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle TRX 1min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'TRX_1MIN'
+        await update.message.reply_text(
+            "🎮 **TRX 1min Selected**\n\n"
+            "Now you can place bets for TRX 1min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
+        
     async def place_bet(self, amount, bet_type, game_type='DEFAULT'):
         """Place a bet with specific game type"""
         try:
@@ -4966,15 +4963,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'reset_stats': get_localized_message('reset_stats', language),
         'back_main_menu': get_localized_message('back_main_menu', language),
         'wingo_trx': "🎮 WINGO/TRX",
-'wingo_30s': "WINGO 30s",
-'wingo_1min': "WINGO 1min", 
-'wingo_3min': "WINGO 3min",
-'wingo_5min': "WINGO 5min",
-'trx_1min': "TRX 1min",
+        'wingo_30s': "WINGO 30s",
+        'wingo_1min': "WINGO 1min", 
+        'wingo_3min': "WINGO 3min",
+        'wingo_5min': "WINGO 5min",
+        'trx_1min': "TRX 1min",
         
         # Main Menu buttons
         'ck_login': get_localized_message('ck_login', language),
-        'bigwin_login': get_localized_message('bigwin_login', language),
         'six_login': get_localized_message('six_login', language),
         'balance': get_localized_message('balance', language),
         'results': get_localized_message('results', language),
@@ -5249,23 +5245,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_session['step'] = 'main'
         await update.message.reply_text("🏠 Main Menu", reply_markup=get_main_keyboard(user_id))
         
-            # ===== WINGO/TRX HANDLING =====
-    elif text == "🎮 WINGO/TRX":
+    # ===== WINGO/TRX HANDLING =====
+    elif text == localized_texts['wingo_trx']:
         await wingo_trx_command(update, context)
         
-    elif text == "WINGO 30s":
+    elif text == localized_texts['wingo_30s']:
         await wingo_30s_command(update, context)
         
-    elif text == "WINGO 1min":
+    elif text == localized_texts['wingo_1min']:
         await wingo_1min_command(update, context)
         
-    elif text == "WINGO 3min":
+    elif text == localized_texts['wingo_3min']:
         await wingo_3min_command(update, context)
         
-    elif text == "WINGO 5min":
+    elif text == localized_texts['wingo_5min']:
         await wingo_5min_command(update, context)
         
-    elif text == "TRX 1min":
+    elif text == localized_texts['trx_1min']:
         await trx_1min_command(update, context)
     
     # ===== MAIN MENU HANDLING =====
@@ -5469,8 +5465,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard(user_id)
         )
         
-        
-
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Exception while handling an update: {context.error}")
     
