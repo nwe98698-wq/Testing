@@ -1250,8 +1250,8 @@ def get_main_keyboard(user_id=None):
         [KeyboardButton(button_texts['bet_big']), KeyboardButton(button_texts['bet_small'])],
         [KeyboardButton(button_texts['bet_red']), KeyboardButton(button_texts['bet_green']), KeyboardButton(button_texts['bet_violet'])],
         [KeyboardButton(button_texts['bot_settings']), KeyboardButton(button_texts['my_bets'])],
-        [KeyboardButton(button_texts['sl_layer'])],
-        [KeyboardButton(button_texts['wingo_trx'])],  # NEW: WINGO/TRX button row
+        [KeyboardButton(button_texts['sl_layer']),
+KeyboardButton(button_texts['wingo_trx'])],  # NEW: WINGO/TRX button row
         [KeyboardButton(button_texts['language']), KeyboardButton(button_texts['bot_info'])],
         [KeyboardButton(button_texts['run_bot']), KeyboardButton(button_texts['stop_bot'])]
     ]
@@ -1473,13 +1473,13 @@ class LotteryBot:
         
         # Game Type IDs - NEW: WINGO/TRX type IDs
         self.game_type_ids = {
-            'WINGO_30S': 30,    # WINGO 30s
-            'WINGO_1MIN': 1,    # WINGO 1min
-            'WINGO_3MIN': 2,    # WINGO 3min
-            'WINGO_5MIN': 3,    # WINGO 5min
-            'TRX_1MIN': 13,     # TRX 1min
-            'DEFAULT': 1        # Default
-        }
+    'WINGO_30S': 30,    # WINGO 30s
+    'WINGO_1MIN': 1,    # WINGO 1min
+    'WINGO_3MIN': 2,    # WINGO 3min
+    'WINGO_5MIN': 3,    # WINGO 5min
+    'TRX_1MIN': 13,     # TRX 1min - 6 Lottery အတွက် typeId 13
+    'DEFAULT': 1        # Default
+}
         
     def sign_md5(self, data_dict):
         """Generate MD5 signature for API requests"""
@@ -1566,39 +1566,42 @@ class LotteryBot:
             return False, f"Login error: {str(e)}", ""
     
     async def get_current_issue(self, game_type='DEFAULT'):
-        """Get current game issue for specific game type"""
-        try:
-            type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
-            
-            # Check if it's TRX game
-            if game_type == 'TRX_1MIN':
-                endpoint = "GetTRXGameIssue"
+    """Get current game issue for specific game type"""
+    try:
+        type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
+        
+        # Check if it's TRX game
+        if game_type == 'TRX_1MIN':
+            if self.platform == '6':
+                endpoint = "GetTRXGameIssue"  # 6 Lottery TRX အတွက်
             else:
-                endpoint = "GetGameIssue"
-            
-            body = {
-                "typeId": type_id,
-                "language": 0,
-                "random": self.random_key(),
-                "timestamp": int(time.time())
-            }
-            body["signature"] = self.sign_md5(body).upper()
-            
-            response = requests.post(
-                f"{self.base_url}{endpoint}",
-                headers=self.headers,
-                json=body,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('msgCode') == 0:
-                    return result.get('data', {}).get('issueNumber', '')
-            return ""
-        except Exception as e:
-            logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
-            return ""
+                endpoint = "GetTRXGameIssue"  # သာမန် TRX အတွက်
+        else:
+            endpoint = "GetGameIssue"
+        
+        body = {
+            "typeId": type_id,
+            "language": 0,
+            "random": self.random_key(),
+            "timestamp": int(time.time())
+        }
+        body["signature"] = self.sign_md5(body).upper()
+        
+        response = requests.post(
+            f"{self.base_url}{endpoint}",
+            headers=self.headers,
+            json=body,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('msgCode') == 0:
+                return result.get('data', {}).get('issueNumber', '')
+        return ""
+    except Exception as e:
+        logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
+        return ""
     
     async def get_balance(self):
         """Get user balance"""
@@ -1655,18 +1658,25 @@ class LotteryBot:
     
         
     async def place_bet(self, amount, bet_type, game_type='DEFAULT'):
-        """Place a bet with specific game type"""
-        try:
-            type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
-            issue_id = await self.get_current_issue(game_type)
-            
-            if not issue_id:
-                return False, "Failed to get current issue", "", 0
-            
-            # Determine if it's colour bet or normal bet
-            is_colour_bet = bet_type in [10, 11, 12]
-            
-            # 6 Lottery requires different bet amount calculation
+    """Place a bet with specific game type"""
+    try:
+        type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
+        issue_id = await self.get_current_issue(game_type)
+        
+        if not issue_id:
+            return False, "Failed to get current issue", "", 0
+        
+        # Determine if it's colour bet or normal bet
+        is_colour_bet = bet_type in [10, 11, 12]
+        
+        # 6 Lottery TRX game အတွက် သီးသန့်သတ်မှတ်ချက်
+        if game_type == 'TRX_1MIN' and self.platform == '6':
+            base_amount = amount
+            bet_count = 1
+            game_type_param = 2  # TRX game အတွက် gameType က 2
+            endpoint = "GameTRXBetting"  # TRX အတွက် endpoint ကွဲပါတယ်
+        else:
+            # သာမန် games အတွက်
             if self.platform == '6':
                 base_amount = amount
                 bet_count = 1
@@ -1685,52 +1695,57 @@ class LotteryBot:
             else:
                 endpoint = "GameBetting"
                 game_type_param = 2 if not is_colour_bet else 0
-            
-            body = {
-                "typeId": type_id,
-                "issuenumber": issue_id,
-                "language": 0,
-                "gameType": game_type_param,
-                "amount": base_amount,
-                "betCount": bet_count,
-                "selectType": int(bet_type),
-                "random": self.random_key(),
-                "timestamp": int(time.time())
-            }
-            body["signature"] = self.sign_md5(body).upper()
-            
-            logger.info(f"{self.platform.upper()} {game_type} {('Colour' if is_colour_bet else 'Normal')} Bet Request: {body}")
-            
-            response = requests.post(
-                f"{self.base_url}{endpoint}",
-                headers=self.headers,
-                json=body,
-                timeout=10
-            )
-            
-            logger.info(f"{self.platform.upper()} Bet API Response: {response.status_code} - {response.text}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('code') == 0 or result.get('msgCode') == 0:
-                    if is_colour_bet:
-                        potential_profit = int(amount * 2.5)
-                    else:
-                        potential_profit = int(amount * 0.96)
-                    return True, "Bet placed successfully", issue_id, potential_profit
+        
+        body = {
+            "typeId": type_id,
+            "issuenumber": issue_id,
+            "language": 0,
+            "gameType": game_type_param,
+            "amount": base_amount,
+            "betCount": bet_count,
+            "selectType": int(bet_type),
+            "random": self.random_key(),
+            "timestamp": int(time.time())
+        }
+        
+        # 6 Lottery TRX game အတွက် language ကွဲနိုင်တယ်
+        if game_type == 'TRX_1MIN' and self.platform == '6':
+            body["language"] = 7  # TRX game အတွက် language 7 ဖြစ်နိုင်တယ်
+        
+        body["signature"] = self.sign_md5(body).upper()
+        
+        logger.info(f"{self.platform.upper()} {game_type} {('Colour' if is_colour_bet else 'Normal')} Bet Request: {body}")
+        
+        response = requests.post(
+            f"{self.base_url}{endpoint}",
+            headers=self.headers,
+            json=body,
+            timeout=10
+        )
+        
+        logger.info(f"{self.platform.upper()} Bet API Response: {response.status_code} - {response.text}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('code') == 0 or result.get('msgCode') == 0:
+                if is_colour_bet:
+                    potential_profit = int(amount * 2.5)
                 else:
-                    error_msg = result.get('msg', 'Bet failed')
-                    if "amount" in error_msg.lower() or "betting" in error_msg.lower():
-                        if self.platform == '6':
-                            return await self.place_bet_fallback(amount, bet_type, issue_id, is_colour_bet)
-                        else:
-                            error_msg = f"Betting amount error: {error_msg}"
-                    return False, error_msg, issue_id, 0
-            return False, f"API connection failed: {response.status_code}", issue_id, 0
-            
-        except Exception as e:
-            logger.error(f"Place bet error for {self.platform} {game_type}: {e}")
-            return False, f"Bet error: {str(e)}", "", 0
+                    potential_profit = int(amount * 0.96)
+                return True, "Bet placed successfully", issue_id, potential_profit
+            else:
+                error_msg = result.get('msg', 'Bet failed')
+                if "amount" in error_msg.lower() or "betting" in error_msg.lower():
+                    if self.platform == '6':
+                        return await self.place_bet_fallback(amount, bet_type, issue_id, is_colour_bet)
+                    else:
+                        error_msg = f"Betting amount error: {error_msg}"
+                return False, error_msg, issue_id, 0
+        return False, f"API connection failed: {response.status_code}", issue_id, 0
+        
+    except Exception as e:
+        logger.error(f"Place bet error for {self.platform} {game_type}: {e}")
+        return False, f"Bet error: {str(e)}", "", 0
     
     async def place_bet_fallback(self, amount, bet_type, issue_id, is_colour_bet=False):
         """Fallback betting method for 6 Lottery with colour bet support"""
@@ -2263,7 +2278,6 @@ async def place_colour_bet_handler(update: Update, context: ContextTypes.DEFAULT
             bet_text = f"""
 ✅ **Colour Bet Placed Successfully!**
 
-**Platform:** {platform_name}
 Issue: {issue_id}
 Type: {colour_emoji} {colour}
 Amount: {amount:,} K (Step {current_index + 1})
@@ -2684,8 +2698,6 @@ async def place_bet_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             bet_text = f"""
 ✅ **Bet Placed Successfully!**
 
-**Game:** {game_name}
-**Platform:** {platform_name}
 **Issue:** {issue_id}
 **Type:** {bet_type_str}
 **Amount:** {amount:,} K (Step {current_index + 1})
@@ -5426,13 +5438,13 @@ async def wingo_trx_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Please select a game type:
 
 **WINGO Games:**
-• WINGO 30s - Fast 30-second games
-• WINGO 1min - 1-minute games  
-• WINGO 3min - 3-minute games
-• WINGO 5min - 5-minute games
+• WINGO 30s 
+• WINGO 1min 
+• WINGO 3min
+• WINGO 5min 
 
 **TRX Games:**
-• TRX 1min - TRX 1-minute games
+• TRX WINGO 1min
 
 Select a game to start betting:
         """
