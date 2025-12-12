@@ -1566,42 +1566,42 @@ class LotteryBot:
             return False, f"Login error: {str(e)}", ""
     
     async def get_current_issue(self, game_type='DEFAULT'):
-    """Get current game issue for specific game type"""
-    try:
-        type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
-        
-        # Check if it's TRX game
-        if game_type == 'TRX_1MIN':
-            if self.platform == '6':
-                endpoint = "GetTRXGameIssue"  # 6 Lottery TRX အတွက်
+        """Get current game issue for specific game type"""
+        try:
+            type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
+            
+            # Check if it's TRX game
+            if game_type == 'TRX_1MIN':
+                if self.platform == '6':
+                    endpoint = "GetTRXGameIssue"  # 6 Lottery TRX အတွက်
+                else:
+                    endpoint = "GetTRXGameIssue"  # သာမန် TRX အတွက်
             else:
-                endpoint = "GetTRXGameIssue"  # သာမန် TRX အတွက်
-        else:
-            endpoint = "GetGameIssue"
-        
-        body = {
-            "typeId": type_id,
-            "language": 0,
-            "random": self.random_key(),
-            "timestamp": int(time.time())
-        }
-        body["signature"] = self.sign_md5(body).upper()
-        
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            headers=self.headers,
-            json=body,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('msgCode') == 0:
-                return result.get('data', {}).get('issueNumber', '')
-        return ""
-    except Exception as e:
-        logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
-        return ""
+                endpoint = "GetGameIssue"
+            
+            body = {
+                "typeId": type_id,
+                "language": 0,
+                "random": self.random_key(),
+                "timestamp": int(time.time())
+            }
+            body["signature"] = self.sign_md5(body).upper()
+            
+            response = requests.post(
+                f"{self.base_url}{endpoint}",
+                headers=self.headers,
+                json=body,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('msgCode') == 0:
+                    return result.get('data', {}).get('issueNumber', '')
+            return ""
+        except Exception as e:
+            logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
+            return ""
     
     async def get_balance(self):
         """Get user balance"""
