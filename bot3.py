@@ -1658,94 +1658,94 @@ class LotteryBot:
     
         
     async def place_bet(self, amount, bet_type, game_type='DEFAULT'):
-    """Place a bet with specific game type"""
-    try:
-        type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
-        issue_id = await self.get_current_issue(game_type)
-        
-        if not issue_id:
-            return False, "Failed to get current issue", "", 0
-        
-        # Determine if it's colour bet or normal bet
-        is_colour_bet = bet_type in [10, 11, 12]
-        
-        # 6 Lottery TRX game အတွက် သီးသန့်သတ်မှတ်ချက်
-        if game_type == 'TRX_1MIN' and self.platform == '6':
-            base_amount = amount
-            bet_count = 1
-            game_type_param = 2  # TRX game အတွက် gameType က 2
-            endpoint = "GameTRXBetting"  # TRX အတွက် endpoint ကွဲပါတယ်
-        else:
-            # သာမန် games အတွက်
-            if self.platform == '6':
+        """Place a bet with specific game type"""
+        try:
+            type_id = self.game_type_ids.get(game_type, self.game_type_ids['DEFAULT'])
+            issue_id = await self.get_current_issue(game_type)
+            
+            if not issue_id:
+                return False, "Failed to get current issue", "", 0
+            
+            # Determine if it's colour bet or normal bet
+            is_colour_bet = bet_type in [10, 11, 12]
+            
+            # 6 Lottery TRX game အတွက် သီးသန့်သတ်မှတ်ချက်
+            if game_type == 'TRX_1MIN' and self.platform == '6':
                 base_amount = amount
                 bet_count = 1
+                game_type_param = 2  # TRX game အတွက် gameType က 2
+                endpoint = "GameTRXBetting"  # TRX အတွက် endpoint ကွဲပါတယ်
             else:
-                if is_colour_bet:
-                    base_amount = 10 if amount < 10000 else 10 ** (len(str(int(amount))) - 2)
-                    bet_count = int(amount / base_amount)
+                # သာမန် games အတွက်
+                if self.platform == '6':
+                    base_amount = amount
+                    bet_count = 1
                 else:
-                    base_amount = 10 if amount < 10000 else 10 ** (len(str(int(amount))) - 2)
-                    bet_count = int(amount / base_amount)
-            
-            # Check if it's TRX game
-            if game_type == 'TRX_1MIN':
-                endpoint = "GameBetting"
-                game_type_param = 2 if not is_colour_bet else 0
-            else:
-                endpoint = "GameBetting"
-                game_type_param = 2 if not is_colour_bet else 0
-        
-        body = {
-            "typeId": type_id,
-            "issuenumber": issue_id,
-            "language": 0,
-            "gameType": game_type_param,
-            "amount": base_amount,
-            "betCount": bet_count,
-            "selectType": int(bet_type),
-            "random": self.random_key(),
-            "timestamp": int(time.time())
-        }
-        
-        # 6 Lottery TRX game အတွက် language ကွဲနိုင်တယ်
-        if game_type == 'TRX_1MIN' and self.platform == '6':
-            body["language"] = 7  # TRX game အတွက် language 7 ဖြစ်နိုင်တယ်
-        
-        body["signature"] = self.sign_md5(body).upper()
-        
-        logger.info(f"{self.platform.upper()} {game_type} {('Colour' if is_colour_bet else 'Normal')} Bet Request: {body}")
-        
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            headers=self.headers,
-            json=body,
-            timeout=10
-        )
-        
-        logger.info(f"{self.platform.upper()} Bet API Response: {response.status_code} - {response.text}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('code') == 0 or result.get('msgCode') == 0:
-                if is_colour_bet:
-                    potential_profit = int(amount * 2.5)
-                else:
-                    potential_profit = int(amount * 0.96)
-                return True, "Bet placed successfully", issue_id, potential_profit
-            else:
-                error_msg = result.get('msg', 'Bet failed')
-                if "amount" in error_msg.lower() or "betting" in error_msg.lower():
-                    if self.platform == '6':
-                        return await self.place_bet_fallback(amount, bet_type, issue_id, is_colour_bet)
+                    if is_colour_bet:
+                        base_amount = 10 if amount < 10000 else 10 ** (len(str(int(amount))) - 2)
+                        bet_count = int(amount / base_amount)
                     else:
-                        error_msg = f"Betting amount error: {error_msg}"
-                return False, error_msg, issue_id, 0
-        return False, f"API connection failed: {response.status_code}", issue_id, 0
-        
-    except Exception as e:
-        logger.error(f"Place bet error for {self.platform} {game_type}: {e}")
-        return False, f"Bet error: {str(e)}", "", 0
+                        base_amount = 10 if amount < 10000 else 10 ** (len(str(int(amount))) - 2)
+                        bet_count = int(amount / base_amount)
+                
+                # Check if it's TRX game
+                if game_type == 'TRX_1MIN':
+                    endpoint = "GameBetting"
+                    game_type_param = 2 if not is_colour_bet else 0
+                else:
+                    endpoint = "GameBetting"
+                    game_type_param = 2 if not is_colour_bet else 0
+            
+            body = {
+                "typeId": type_id,
+                "issuenumber": issue_id,
+                "language": 0,
+                "gameType": game_type_param,
+                "amount": base_amount,
+                "betCount": bet_count,
+                "selectType": int(bet_type),
+                "random": self.random_key(),
+                "timestamp": int(time.time())
+            }
+            
+            # 6 Lottery TRX game အတွက် language ကွဲနိုင်တယ်
+            if game_type == 'TRX_1MIN' and self.platform == '6':
+                body["language"] = 7  # TRX game အတွက် language 7 ဖြစ်နိုင်တယ်
+            
+            body["signature"] = self.sign_md5(body).upper()
+            
+            logger.info(f"{self.platform.upper()} {game_type} {('Colour' if is_colour_bet else 'Normal')} Bet Request: {body}")
+            
+            response = requests.post(
+                f"{self.base_url}{endpoint}",
+                headers=self.headers,
+                json=body,
+                timeout=10
+            )
+            
+            logger.info(f"{self.platform.upper()} Bet API Response: {response.status_code} - {response.text}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('code') == 0 or result.get('msgCode') == 0:
+                    if is_colour_bet:
+                        potential_profit = int(amount * 2.5)
+                    else:
+                        potential_profit = int(amount * 0.96)
+                    return True, "Bet placed successfully", issue_id, potential_profit
+                else:
+                    error_msg = result.get('msg', 'Bet failed')
+                    if "amount" in error_msg.lower() or "betting" in error_msg.lower():
+                        if self.platform == '6':
+                            return await self.place_bet_fallback(amount, bet_type, issue_id, is_colour_bet)
+                        else:
+                            error_msg = f"Betting amount error: {error_msg}"
+                    return False, error_msg, issue_id, 0
+            return False, f"API connection failed: {response.status_code}", issue_id, 0
+            
+        except Exception as e:
+            logger.error(f"Place bet error for {self.platform} {game_type}: {e}")
+            return False, f"Bet error: {str(e)}", "", 0
     
     async def place_bet_fallback(self, amount, bet_type, issue_id, is_colour_bet=False):
         """Fallback betting method for 6 Lottery with colour bet support"""
