@@ -1643,7 +1643,7 @@ async def get_current_issue(self, game_type='DEFAULT'):
         except Exception as e:
             logger.error(f"Get {game_type} issue error for {self.platform}: {e}")
             return ""
-    
+
     async def get_user_info(self):
         """Get user information"""
         try:
@@ -1669,7 +1669,7 @@ async def get_current_issue(self, game_type='DEFAULT'):
         except Exception as e:
             logger.error(f"Get user info error for {self.platform}: {e}")
             return {}
-    
+
     async def get_balance(self):
         """Get user balance"""
         try:
