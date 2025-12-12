@@ -1652,113 +1652,7 @@ class LotteryBot:
             logger.error(f"Get user info error for {self.platform}: {e}")
             return {}
     
-    async def wingo_trx_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show WINGO/TRX selection menu"""
-        user_id = str(update.effective_user.id)
-        
-        menu_text = """
-🎮 **WINGO/TRX Game Selection**
-
-Please select a game type:
-
-**WINGO Games:**
-• WINGO 30s - Fast 30-second games
-• WINGO 1min - 1-minute games  
-• WINGO 3min - 3-minute games
-• WINGO 5min - 5-minute games
-
-**TRX Games:**
-• TRX 1min - TRX 1-minute games
-
-Select a game to start betting:
-        """
-        
-        await update.message.reply_text(menu_text, reply_markup=get_wingo_trx_keyboard(user_id), parse_mode='Markdown')
-
-    async def wingo_30s_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle WINGO 30s bet"""
-        user_id = str(update.effective_user.id)
-        user_session = user_sessions.get(user_id, {})
-        
-        if not user_session.get('logged_in'):
-            await update.message.reply_text("❌ Please login first!")
-            return
-        
-        user_session['current_game_type'] = 'WINGO_30S'
-        await update.message.reply_text(
-            "🎮 **WINGO 30s Selected**\n\n"
-            "Now you can place bets for WINGO 30s games.\n"
-            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-            reply_markup=get_main_keyboard(user_id)
-        )
-
-    async def wingo_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle WINGO 1min bet"""
-        user_id = str(update.effective_user.id)
-        user_session = user_sessions.get(user_id, {})
-        
-        if not user_session.get('logged_in'):
-            await update.message.reply_text("❌ Please login first!")
-            return
-        
-        user_session['current_game_type'] = 'WINGO_1MIN'
-        await update.message.reply_text(
-            "🎮 **WINGO 1min Selected**\n\n"
-            "Now you can place bets for WINGO 1min games.\n"
-            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-            reply_markup=get_main_keyboard(user_id)
-        )
-
-    async def wingo_3min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle WINGO 3min bet"""
-        user_id = str(update.effective_user.id)
-        user_session = user_sessions.get(user_id, {})
-        
-        if not user_session.get('logged_in'):
-            await update.message.reply_text("❌ Please login first!")
-            return
-        
-        user_session['current_game_type'] = 'WINGO_3MIN'
-        await update.message.reply_text(
-            "🎮 **WINGO 3min Selected**\n\n"
-            "Now you can place bets for WINGO 3min games.\n"
-            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-            reply_markup=get_main_keyboard(user_id)
-        )
-
-    async def wingo_5min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle WINGO 5min bet"""
-        user_id = str(update.effective_user.id)
-        user_session = user_sessions.get(user_id, {})
-        
-        if not user_session.get('logged_in'):
-            await update.message.reply_text("❌ Please login first!")
-            return
-        
-        user_session['current_game_type'] = 'WINGO_5MIN'
-        await update.message.reply_text(
-            "🎮 **WINGO 5min Selected**\n\n"
-            "Now you can place bets for WINGO 5min games.\n"
-            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-            reply_markup=get_main_keyboard(user_id)
-        )
-
-    async def trx_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle TRX 1min bet"""
-        user_id = str(update.effective_user.id)
-        user_session = user_sessions.get(user_id, {})
-        
-        if not user_session.get('logged_in'):
-            await update.message.reply_text("❌ Please login first!")
-            return
-        
-        user_session['current_game_type'] = 'TRX_1MIN'
-        await update.message.reply_text(
-            "🎮 **TRX 1min Selected**\n\n"
-            "Now you can place bets for TRX 1min games.\n"
-            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
-            reply_markup=get_main_keyboard(user_id)
-        )
+    
         
     async def place_bet(self, amount, bet_type, game_type='DEFAULT'):
         """Place a bet with specific game type"""
@@ -4930,6 +4824,114 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error in broadcast: {e}")
         await update.message.reply_text(f"❌ Error: {str(e)}")
+        
+        async def wingo_trx_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show WINGO/TRX selection menu"""
+        user_id = str(update.effective_user.id)
+        
+        menu_text = """
+🎮 **WINGO/TRX Game Selection**
+
+Please select a game type:
+
+**WINGO Games:**
+• WINGO 30s - Fast 30-second games
+• WINGO 1min - 1-minute games  
+• WINGO 3min - 3-minute games
+• WINGO 5min - 5-minute games
+
+**TRX Games:**
+• TRX 1min - TRX 1-minute games
+
+Select a game to start betting:
+        """
+        
+        await update.message.reply_text(menu_text, reply_markup=get_wingo_trx_keyboard(user_id), parse_mode='Markdown')
+
+    async def wingo_30s_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 30s bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_30S'
+        await update.message.reply_text(
+            "🎮 **WINGO 30s Selected**\n\n"
+            "Now you can place bets for WINGO 30s games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
+
+    async def wingo_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 1min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_1MIN'
+        await update.message.reply_text(
+            "🎮 **WINGO 1min Selected**\n\n"
+            "Now you can place bets for WINGO 1min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
+
+    async def wingo_3min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 3min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_3MIN'
+        await update.message.reply_text(
+            "🎮 **WINGO 3min Selected**\n\n"
+            "Now you can place bets for WINGO 3min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
+
+    async def wingo_5min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle WINGO 5min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'WINGO_5MIN'
+        await update.message.reply_text(
+            "🎮 **WINGO 5min Selected**\n\n"
+            "Now you can place bets for WINGO 5min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
+
+    async def trx_1min_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle TRX 1min bet"""
+        user_id = str(update.effective_user.id)
+        user_session = user_sessions.get(user_id, {})
+        
+        if not user_session.get('logged_in'):
+            await update.message.reply_text("❌ Please login first!")
+            return
+        
+        user_session['current_game_type'] = 'TRX_1MIN'
+        await update.message.reply_text(
+            "🎮 **TRX 1min Selected**\n\n"
+            "Now you can place bets for TRX 1min games.\n"
+            "Use the betting buttons (BIG, SMALL, RED, etc.) to place your bets.",
+            reply_markup=get_main_keyboard(user_id)
+        )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
